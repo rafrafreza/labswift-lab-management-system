@@ -7,7 +7,9 @@ import { listDoctors } from "@/lib/services/doctors";
 import { getPatientBasic, listPatients } from "@/lib/services/patients";
 import { createReport } from "@/lib/services/reports";
 import { listTemplates } from "@/lib/services/templates";
+import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import { cn, formatAge, formatCurrency, isValueAbnormal } from "@/lib/utils";
+import { invalidNumericResults, missingResults, summarize, validateBilling, validateCollectedAt } from "@/lib/validation";
 import type { Doctor, Patient, TemplateWithFields } from "@/types";
 
 type Step = 1 | 2 | 3;
@@ -107,14 +109,48 @@ export default function NewReportPage() {
   const dueAmount = paymentStatus === "PAID" ? 0 : Math.max(0, netBill - (amountPaid === "" ? 0 : Number(amountPaid)));
   const doctorIncentive = referringDoctor ? Math.round((netBill * referringDoctor.incentiveRate) / 100) : 0;
 
+  // Warn before a refresh/close would throw away typed results
+  useUnsavedChangesWarning(!submitting && (Object.values(values).some((v) => v.trim() !== "") || notes.trim() !== ""));
+
   async function handleSubmit(status: "DRAFT" | "FINAL") {
     if (!selectedPatient || !selectedTemplate) {
       return;
     }
 
-    const missing = selectedTemplate.fields.filter((field) => !values[field.id]?.trim()).map((field) => field.fieldName);
-    if (missing.length > 0) {
-      toast.error(`Fill in: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "..." : ""}`);
+    const fields = selectedTemplate.fields;
+    if (fields.length === 0) {
+      toast.error("This test has no parameters yet. Ask an administrator to add them in Templates.");
+      return;
+    }
+    if (status === "FINAL") {
+      const missing = missingResults(fields, values);
+      if (missing.length > 0) {
+        toast.error(`Fill in: ${summarize(missing)}`);
+        return;
+      }
+    } else if (missingResults(fields, values).length === fields.length) {
+      toast.error("Enter at least one result before saving a draft.");
+      return;
+    }
+    const notNumbers = invalidNumericResults(fields, values);
+    if (notNumbers.length > 0) {
+      toast.error(`These results must be numbers: ${summarize(notNumbers)}`);
+      return;
+    }
+    const dateError = validateCollectedAt(collectedAt);
+    if (dateError) {
+      toast.error(dateError);
+      return;
+    }
+    const billingError = validateBilling({
+      billAmount: numBillAmount,
+      discountType,
+      discount: numDiscount,
+      paymentStatus,
+      amountPaid: paymentStatus === "PAID" ? netBill : amountPaid === "" ? 0 : Number(amountPaid),
+    });
+    if (billingError) {
+      toast.error(billingError);
       return;
     }
 
@@ -245,7 +281,7 @@ export default function NewReportPage() {
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-slate-900">{patient.name}</div>
                       <div className="text-xs text-slate-500">
-                        {formatAge(patient.age, patient.ageMonths)} · {patient.gender} · {patient.phone}
+                        {[formatAge(patient.age, patient.ageMonths), patient.gender, patient.phone].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                     <span className="font-mono text-xs text-slate-400">{patient.patientCode}</span>
@@ -319,10 +355,23 @@ export default function NewReportPage() {
               return acc;
             }, {} as Record<string, TemplateWithFields[]>);
 
+            if (templates.length === 0) {
+              return (
+                <div className="rounded-lg border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                  <FlaskConical className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                  <p className="font-medium">No tests are set up yet</p>
+                  <p className="mt-1 text-xs text-slate-400">An administrator needs to add test templates before reports can be created.</p>
+                </div>
+              );
+            }
+
             if (filtered.length === 0) {
               return (
                 <div className="rounded-lg border border-slate-200 py-8 text-center text-sm text-slate-400">
-                  No tests found for &quot;{templateSearch}&quot;
+                  No tests found for &quot;{templateSearch}&quot;.{" "}
+                  <button type="button" onClick={() => setTemplateSearch("")} className="text-teal-700 hover:underline">
+                    Clear search
+                  </button>
                 </div>
               );
             }
@@ -334,9 +383,11 @@ export default function NewReportPage() {
                   {items.map((template) => (
                     <button
                       key={template.id}
+                      disabled={template.fields.length === 0}
+                      title={template.fields.length === 0 ? "This test has no parameters yet" : undefined}
                       onClick={() => { setSelectedTemplate(template); setStep(3); }}
                       className={cn(
-                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
+                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50",
                         selectedTemplate?.id === template.id
                           ? "border-teal-400 bg-teal-50 ring-2 ring-teal-200"
                           : "border-slate-200 hover:border-teal-300 hover:bg-slate-50",
@@ -347,7 +398,9 @@ export default function NewReportPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-slate-900">{template.name}</div>
-                        <div className="mt-0.5 text-xs text-slate-500">{template.fields.length} parameters</div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          {template.fields.length === 0 ? "No parameters yet" : `${template.fields.length} parameters`}
+                        </div>
                         {template.price && <div className="mt-1 text-xs font-medium text-teal-700">Rs.{Number(template.price)}</div>}
                       </div>
                       {selectedTemplate?.id === template.id && <Check className="h-4 w-4 flex-shrink-0 text-teal-600" />}

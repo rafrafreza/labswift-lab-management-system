@@ -143,6 +143,16 @@ export default function TemplateForm({ mode, initial }: Props) {
     setFields(next);
   }
 
+  /** Min and max (kept as text in the form) must be numbers, with min not above max. */
+  function rangeProblem(label: string, min?: string, max?: string): string | null {
+    const lo = (min ?? "").trim();
+    const hi = (max ?? "").trim();
+    if (lo && !Number.isFinite(Number(lo))) return `the ${label} minimum must be a number`;
+    if (hi && !Number.isFinite(Number(hi))) return `the ${label} maximum must be a number`;
+    if (lo && hi && Number(lo) > Number(hi)) return `the ${label} minimum can't be greater than the maximum`;
+    return null;
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
 
@@ -150,9 +160,40 @@ export default function TemplateForm({ mode, initial }: Props) {
       toast.error("Template name and category are required");
       return;
     }
+    if (name.trim().length > 150) {
+      toast.error("Template name is too long (150 characters at most)");
+      return;
+    }
+    if (price.trim() && (!Number.isFinite(Number(price)) || Number(price) < 0)) {
+      toast.error("Price must be a number, 0 or more");
+      return;
+    }
+    if (fields.length === 0) {
+      toast.error("Add at least one parameter: a test with no parameters can't be used to create reports");
+      return;
+    }
     if (fields.some((f) => !f.fieldName.trim())) {
       toast.error("All fields must have a name");
       return;
+    }
+    const seen = new Set<string>();
+    for (const f of fields) {
+      const key = `${(f.section ?? "").trim().toLowerCase()}|${f.fieldName.trim().toLowerCase()}`;
+      if (seen.has(key)) {
+        toast.error(`"${f.fieldName.trim()}" appears twice${f.section?.trim() ? ` in the "${f.section.trim()}" section` : ""}. Rename or remove one.`);
+        return;
+      }
+      seen.add(key);
+    }
+    for (const f of fields) {
+      const problem =
+        rangeProblem("normal range", f.normalRangeMin, f.normalRangeMax) ??
+        rangeProblem("male range", f.normalRangeMinMale, f.normalRangeMaxMale) ??
+        rangeProblem("female range", f.normalRangeMinFemale, f.normalRangeMaxFemale);
+      if (problem) {
+        toast.error(`${f.fieldName.trim()}: ${problem}`);
+        return;
+      }
     }
 
     setSaving(true);

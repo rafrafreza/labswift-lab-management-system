@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { mapPatient, mapPatientWithReports } from "@/lib/services/helpers";
+import { cleanName } from "@/lib/validation";
 import type { CreatePatientInput } from "@/types";
 
 export async function listPatients(params: { page: number; limit: number; search?: string }) {
@@ -73,15 +74,29 @@ export async function getPatient(id: string) {
   return mapPatientWithReports(data);
 }
 
+/** An existing patient with the same name and phone number, so the form can warn before adding a duplicate. */
+export async function findDuplicatePatient(input: { name: string; phone?: string }) {
+  const phone = input.phone?.trim();
+  if (!phone) return null;
+  const escaped = cleanName(input.name).replace(/[\\%_]/g, "\\$&");
+  const { data } = await supabase
+    .from("patients")
+    .select("id, patientCode, name")
+    .eq("phone", phone)
+    .ilike("name", escaped)
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
 export async function createPatient(input: CreatePatientInput) {
   const payload: Record<string, any> = {
     patientCode: "",
-    name: input.name.trim(),
+    name: cleanName(input.name),
     age: Number(input.age),
     ageMonths: input.ageMonths != null ? Math.max(0, Math.min(11, Number(input.ageMonths))) : 0,
     gender: input.gender,
     phone: input.phone?.trim() || null,
-    email: input.email?.trim() || null,
+    email: input.email?.trim().toLowerCase() || null,
     address: input.address?.trim() || null,
     refDoctor: input.refDoctor?.trim() || null,
     doctorId: input.doctorId || null,
@@ -115,12 +130,12 @@ export async function createPatient(input: CreatePatientInput) {
 
 export async function updatePatient(id: string, input: CreatePatientInput) {
   const payload: Record<string, any> = {
-    name: input.name.trim(),
+    name: cleanName(input.name),
     age: Number(input.age),
     ageMonths: input.ageMonths != null ? Math.max(0, Math.min(11, Number(input.ageMonths))) : 0,
     gender: input.gender,
     phone: input.phone?.trim() || null,
-    email: input.email?.trim() || null,
+    email: input.email?.trim().toLowerCase() || null,
     address: input.address?.trim() || null,
     refDoctor: input.refDoctor?.trim() || null,
     doctorId: input.doctorId || null,
