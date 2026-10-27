@@ -11,6 +11,7 @@ type SettingsForm = {
   labPhone: string;
   labEmail: string;
   labWebsite: string;
+  tagline: string;
   logoUrl: string;
   signatureUrl: string;
   useSignature: boolean;
@@ -27,6 +28,7 @@ const DEFAULTS: SettingsForm = {
   labPhone: "",
   labEmail: "",
   labWebsite: "",
+  tagline: "",
   logoUrl: "",
   signatureUrl: "",
   useSignature: true,
@@ -132,6 +134,7 @@ export default function SettingsPage() {
           ...DEFAULTS,
           ...settings,
           labWebsite: settings.labWebsite || "",
+          tagline: settings.tagline || "",
           logoUrl: settings.logoUrl || "",
           signatureUrl: settings.signatureUrl || "",
           useSignature: settings.useSignature !== undefined ? Boolean(settings.useSignature) : Boolean(settings.signatureUrl),
@@ -195,6 +198,7 @@ export default function SettingsPage() {
         labPhone: form.labPhone,
         labEmail: form.labEmail,
         labWebsite: form.labWebsite || null,
+        tagline: form.tagline.trim() || null,
         logoUrl: form.logoUrl || null,
         signatureUrl: form.signatureUrl || null,
         useSignature: form.useSignature,
@@ -234,6 +238,21 @@ export default function SettingsPage() {
               Lab Name <span className="text-red-500">*</span>
             </label>
             <input type="text" className="form-input" value={form.labName} onChange={(event) => update("labName", event.target.value)} placeholder="e.g. Sharma Pathology Lab" />
+          </div>
+          <div className="col-span-2">
+            <label className="form-label">Tagline (optional)</label>
+            <textarea
+              rows={2}
+              maxLength={80}
+              className="form-input resize-none"
+              value={form.tagline}
+              onChange={(event) => update("tagline", event.target.value)}
+              placeholder={"e.g. Precision in Diagnosis,\nCare in Every Slide."}
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Printed in small text just below the logo, top left of PDF reports. Press Enter for a second line.
+              Leave empty for no tagline. Needs a logo to be uploaded.
+            </p>
           </div>
           <div className="col-span-2">
             <label className="form-label">Address</label>
