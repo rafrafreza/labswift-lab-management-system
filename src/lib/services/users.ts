@@ -11,6 +11,14 @@ export async function listUsers() {
 }
 
 export async function updateUser(userId: string, payload: { role?: Role; isActive?: boolean }) {
+  // Guard against locking yourself out (an admin removing their own admin access or deactivating themselves)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.id === userId && (payload.role === "STAFF" || payload.isActive === false)) {
+    throw new Error("You can't remove your own admin access or deactivate your own account.");
+  }
+
   const { data, error } = await supabase.from("profiles").update(payload).eq("id", userId).select("*").single();
   if (error) {
     throw new Error(error.message);
@@ -35,7 +43,7 @@ export async function inviteUser(payload: { email: string; name: string; role: R
   if (error) {
     const lower = error.message.toLowerCase();
     const message = lower.includes("network request failed") || lower.includes("failed to fetch") || lower.includes("cors")
-      ? "Invite function is not deployed or not accessible. Deploy the Supabase Edge Function and configure CORS for your app."
+      ? "Could not reach the invite function. Make sure it is deployed (supabase functions deploy invite-user) and, if the APP_URL secret is set, that it matches the address of this site."
       : error.message;
     throw new Error(message);
   }
