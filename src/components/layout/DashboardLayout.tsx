@@ -15,6 +15,7 @@ import {
   TrendingUp,
   UserCog,
   Users,
+  Wallet,
   X,
   Plus,
   Bell,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
 const ADMIN_NAV_ITEMS = [
   { label: "Templates",    href: "/admin/templates",  icon: FolderOpen, exact: false },
   { label: "Doctors",      href: "/admin/doctors",    icon: Stethoscope, exact: false },
+  { label: "Financials",   href: "/admin/financials", icon: Wallet, exact: false },
   { label: "Incentives",   href: "/admin/incentives", icon: IndianRupee, exact: false },
   { label: "Staff",        href: "/admin/users",      icon: UserCog, exact: false },
   { label: "Analytics",    href: "/admin/analytics",  icon: TrendingUp, exact: false },
