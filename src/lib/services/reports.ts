@@ -31,6 +31,20 @@ const REPORT_SELECT = `
   )
 `;
 
+// Light select for the list screen: no result values or field definitions (those are only needed on detail pages)
+const REPORT_LIST_SELECT = `
+  id, reportNumber, patientId, templateId, createdById, status, collectedAt, reportedAt, notes, pdfUrl,
+  billAmount, discountType, discount, amountPaid, paymentStatus, createdAt, updatedAt,
+  patient:patients!reports_patientId_fkey (
+    id, patientCode, name, age, ageMonths, gender, phone, refDoctor, doctorId, email, address, bloodGroup
+  ),
+  template:test_templates!reports_templateId_fkey (id, name, category, price),
+  createdBy:profiles!reports_createdById_fkey (name)
+`;
+
+// Cap on patient ids sent in a search filter; keeps the request URL a safe length
+const SEARCH_MATCH_CAP = 100;
+
 export async function listReports(params: {
   page: number;
   limit: number;
@@ -39,35 +53,44 @@ export async function listReports(params: {
 }) {
   const { page, limit, search = "", status = "ALL" } = params;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("reports")
-    .select(REPORT_SELECT)
+    .select(REPORT_LIST_SELECT, { count: "exact" })
     .order("createdAt", { ascending: false });
 
+  if (status !== "ALL") {
+    query = query.eq("status", status);
+  }
+
+  // Strip characters that have meaning in PostgREST filter strings
+  const term = search.replace(/[,()%*\\]/g, " ").replace(/\s+/g, " ").trim();
+  if (term) {
+    const [patientRes, templateRes] = await Promise.all([
+      supabase
+        .from("patients")
+        .select("id")
+        .or(`name.ilike.%${term}%,patientCode.ilike.%${term}%`)
+        .limit(SEARCH_MATCH_CAP),
+      supabase.from("test_templates").select("id").ilike("name", `%${term}%`).limit(SEARCH_MATCH_CAP),
+    ]);
+    if (patientRes.error) throw new Error(patientRes.error.message);
+    if (templateRes.error) throw new Error(templateRes.error.message);
+
+    const conditions = [`reportNumber.ilike.%${term}%`];
+    const patientIds = (patientRes.data ?? []).map((p) => p.id);
+    const templateIds = (templateRes.data ?? []).map((t) => t.id);
+    if (patientIds.length) conditions.push(`patientId.in.(${patientIds.join(",")})`);
+    if (templateIds.length) conditions.push(`templateId.in.(${templateIds.join(",")})`);
+    query = query.or(conditions.join(","));
+  }
+
+  const from = (page - 1) * limit;
+  const { data, count, error } = await query.range(from, from + limit - 1);
   if (error) throw new Error(error.message);
 
-  let reports = (data ?? []).map(mapReport);
-
-  if (status !== "ALL") {
-    reports = reports.filter((r) => r.status === status);
-  }
-
-  const term = search.trim().toLowerCase();
-  if (term) {
-    reports = reports.filter((r) =>
-      [r.reportNumber, r.patient.name, r.patient.patientCode, r.template.name]
-        .join(" ")
-        .toLowerCase()
-        .includes(term),
-    );
-  }
-
-  const total = reports.length;
-  const from = (page - 1) * limit;
-
   return {
-    reports: reports.slice(from, from + limit),
-    total,
+    reports: (data ?? []).map(mapReport),
+    total: count ?? 0,
   };
 }
 
