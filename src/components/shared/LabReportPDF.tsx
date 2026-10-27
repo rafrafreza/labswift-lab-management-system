@@ -3,6 +3,7 @@
 import { Document, Font, Image, Page, StyleSheet, Text, View, Svg, Polygon } from "@react-pdf/renderer";
 import { format } from "date-fns";
 
+import { normalizeReportTemplate, type ReportTemplateId } from "@/lib/reportTemplates";
 import { formatAge, GENDER_LABELS, getRangeText } from "@/lib/utils";
 import type { ReportWithRelations } from "@/types";
 
@@ -21,6 +22,7 @@ type SettingsProps = {
     labEmail: string;
     labWebsite?: string;
     tagline?: string | null;
+    reportTemplate?: string | null;
     logoUrl?: string;
     signatureUrl?: string;
     useSignature?: boolean;
@@ -46,12 +48,14 @@ function ReportPageContent({
     report,
     settings,
     S,
+    theme,
     fmtDatetime,
     accent,
 }: {
     report: ReportWithRelations;
     settings: SettingsProps;
     S: any;
+    theme: Theme;
     fmtDatetime: (d: Date | string) => string;
     accent: string;
 }) {
@@ -86,7 +90,46 @@ function ReportPageContent({
 
     return (
         <Page size="A4" style={S.page} wrap>
-            {/* ── HEADER BAND ────────────────────────────────────────────── */}
+            {/* ── HEADER ─────────────────────────────────────────────────── */}
+            {theme.headerLayout === "centered" ? (
+                <View style={S.centerHeader} fixed>
+                    {settings.logoUrl ? <Image src={settings.logoUrl} style={S.logo} /> : null}
+                    {settings.logoUrl && settings.tagline?.trim() ? (
+                        <Text style={S.logoTagline}>{settings.tagline.trim()}</Text>
+                    ) : null}
+                    <Text style={S.labName}>{settings.labName}</Text>
+                    {settings.labAddress ? <Text style={S.centerDetail}>{settings.labAddress}</Text> : null}
+                    {settings.labPhone || settings.labEmail || settings.labWebsite ? (
+                        <Text style={S.centerDetail}>
+                            {[
+                                settings.labPhone ? `Phone: ${settings.labPhone}` : null,
+                                settings.labEmail ? `Email: ${settings.labEmail}` : null,
+                                settings.labWebsite || null,
+                            ].filter(Boolean).join("   |   ")}
+                        </Text>
+                    ) : null}
+                    <View style={S.ruleThick} />
+                    <View style={S.ruleThin} />
+                    <View style={S.metaStrip}>
+                        <View style={S.metaItem}>
+                            <Text style={S.metaLabel}>Report No.</Text>
+                            <Text style={S.metaValue}>{report.reportNumber}</Text>
+                        </View>
+                        <View style={S.metaItem}>
+                            <Text style={S.metaLabel}>Collected</Text>
+                            <Text style={S.metaValue}>{fmtDatetime(report.collectedAt)}</Text>
+                        </View>
+                        {report.reportedAt ? (
+                            <View style={S.metaItem}>
+                                <Text style={S.metaLabel}>Reported</Text>
+                                <Text style={S.metaValue}>{fmtDatetime(report.reportedAt)}</Text>
+                            </View>
+                        ) : null}
+                        <Text style={S.metaStatus}>FINAL REPORT</Text>
+                    </View>
+                </View>
+            ) : (
+            <>
             <View style={S.headerBand} fixed>
                 <View style={S.headerLeft}>
                     {settings.logoUrl ? (
@@ -121,6 +164,8 @@ function ReportPageContent({
 
             {/* Decorative line below header */}
             <View style={S.headerLine} fixed />
+            </>
+            )}
 
             {/* ── PAGE BODY ──────────────────────────────────────────────── */}
             <View style={S.body}>
@@ -181,7 +226,7 @@ function ReportPageContent({
                         {values.map((v, index) => {
                             const rangeText = getRangeText(v.field, patientGender);
                             const isAbnormal = v.isAbnormal;
-                            const altBg = index % 2 !== 0 ? "#f8fafc" : "#ffffff";
+                            const altBg = index % 2 !== 0 ? theme.zebra : "#ffffff";
                             const rowStyle = isAbnormal 
                                 ? S.tableRowAbnormal 
                                 : [S.tableRow, { backgroundColor: altBg }];
@@ -207,7 +252,7 @@ function ReportPageContent({
                                         {ANTIGENS.map((antigen, ai) => (
                                             <View key={antigen} style={[
                                                 S.widalDataRow,
-                                                { backgroundColor: ai % 2 === 0 ? "#ffffff" : "#f8fafc" }
+                                                { backgroundColor: ai % 2 === 0 ? "#ffffff" : theme.zebra }
                                             ]}>
                                                 <Text style={S.widalDataAntigen}>{antigen}</Text>
                                                 {DILUTIONS.map((dilution) => {
@@ -306,6 +351,8 @@ function ReportPageContent({
             </View>
 
             {/* ── FOOTER BACKGROUND GRAPHICS ─────────────────────────────── */}
+            {theme.footerArt === "strip" ? <View fixed style={S.footerStrip} /> : null}
+            {theme.footerArt === "geometric" ? (
             <View fixed style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, zIndex: -1 }}>
                 {/* Left Geometric Sweeps (Complimenting the right side) */}
                 <Svg height="80" width="250" style={{ position: "absolute", bottom: 0, left: 0 }}>
@@ -330,6 +377,7 @@ function ReportPageContent({
                     <Polygon points="300,55 300,80 260,80" style={{ fill: accent, opacity: 0.25 }} />
                 </Svg>
             </View>
+            ) : null}
 
             {/* ── FOOTER BAR ─────────────────────────────────────────────── */}
             <View style={S.footerBar} fixed>
@@ -350,31 +398,9 @@ function ReportPageContent({
     );
 }
 
-export default function LabReportPDF({ report, reports, settings }: Props) {
-    const accent = settings.accentColor || "#0f766e"; // Elegant teal default
-    
-    // 1. Removed time from format, only date is shown
-    const fmtDatetime = (d: Date | string) => format(new Date(d), "dd/MM/yyyy");
-
-    const reportsList = reports && reports.length > 0 
-        ? reports 
-        : report 
-            ? [report] 
-            : [];
-
-    if (reportsList.length === 0) {
-        return null;
-    }
-
-    const reportDate = reportsList[0]?.collectedAt || reportsList[0]?.createdAt || new Date();
-    const dateStr = format(new Date(reportDate), "dd-MM");
-
-    const docTitle = reportsList.length === 1
-        ? `${reportsList[0].reportNumber} - ${reportsList[0].patient.name}`
-        : `${reportsList[0].patient.patientCode} - ${reportsList[0].patient.name} - ${dateStr} - Combined Reports`;
-
-    // ── Stylesheet ──────────────────────────────────────────────────────────────
-    const S = StyleSheet.create({
+// ── Base stylesheet (the "modern" design); other designs override parts of it ─────────
+function baseStyles(accent: string): Record<string, any> {
+    return {
         page: {
             fontFamily: "Helvetica",
             fontSize: 9,
@@ -801,7 +827,213 @@ export default function LabReportPDF({ report, reports, settings }: Props) {
         footerRight: { alignItems: "flex-end", minWidth: 90 },
         footerPage: { fontSize: 8, fontFamily: "Helvetica-Bold", color: "#0f172a", marginBottom: 2 },
         footerLabName: { fontSize: 7, color: "#64748b" },
-    });
+        };
+}
+
+// ── Designs ──────────────────────────────────────────────────────────────────
+// Each design = a few structural switches + style overrides merged over baseStyles().
+
+function parseHex(hex: string): [number, number, number] | null {
+    const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return null;
+    const h = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function toHex(rgb: number[]) {
+    return "#" + rgb.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+}
+
+/** Mix `hex` with white; amount 0 = the colour itself, 1 = white. */
+function tint(hex: string, amount: number) {
+    const rgb = parseHex(hex);
+    if (!rgb) return "#f1f5f9";
+    return toHex(rgb.map((v) => v + (255 - v) * amount));
+}
+
+/** Mix `hex` with black; amount 0 = the colour itself, 1 = black. */
+function shade(hex: string, amount: number) {
+    const rgb = parseHex(hex);
+    if (!rgb) return "#0f172a";
+    return toHex(rgb.map((v) => v * (1 - amount)));
+}
+
+/** Readable text colour (white or near-black) for text placed on `hex`. */
+function onColor(hex: string) {
+    const rgb = parseHex(hex);
+    if (!rgb) return "#ffffff";
+    const [r, g, b] = rgb;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#0f172a" : "#ffffff";
+}
+
+type Theme = {
+    headerLayout: "split" | "centered";
+    footerArt: "geometric" | "strip" | "none";
+    zebra: string; // background of every second result row
+    styles: Record<string, any>; // merged over baseStyles()
+};
+
+function themeFor(id: ReportTemplateId, accent: string): Theme {
+    switch (id) {
+        // ── Classic Clinical: centred letterhead, double rule, serif headings, ruled tables ──
+        case "classic": {
+            const line = "#94a3b8";
+            return {
+                headerLayout: "centered",
+                footerArt: "none",
+                zebra: "#fafbfc",
+                styles: {
+                    centerHeader: { paddingHorizontal: 36, paddingTop: 14, alignItems: "center" },
+                    logo: { width: 44, height: 44, objectFit: "contain" },
+                    labName: { fontFamily: "Times-Bold", color: "#0f172a", fontSize: 23, letterSpacing: 0.4, marginTop: 3, marginBottom: 3, textAlign: "center" },
+                    centerDetail: { fontSize: 8.6, color: "#475569", textAlign: "center", marginBottom: 1.5 },
+                    ruleThick: { alignSelf: "stretch", height: 2, backgroundColor: accent, marginTop: 7 },
+                    ruleThin: { alignSelf: "stretch", height: 0.75, backgroundColor: accent, marginTop: 2 },
+                    metaStrip: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4, borderBottomWidth: 0.75, borderBottomColor: "#cbd5e1" },
+                    metaItem: { flexDirection: "row", alignItems: "center" },
+                    metaLabel: { fontSize: 6.8, fontFamily: "Helvetica-Bold", color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8, marginRight: 4 },
+                    metaValue: { fontSize: 8.8, fontFamily: "Helvetica-Bold", color: "#0f172a" },
+                    metaStatus: { fontSize: 7, fontFamily: "Helvetica-Bold", color: accent, letterSpacing: 1.2 },
+                    body: { paddingTop: 10 },
+                    patientBlock: { backgroundColor: "#ffffff", borderRadius: 0, borderWidth: 1, borderColor: line, borderLeftWidth: 1, borderLeftColor: line, padding: 8, marginBottom: 10 },
+                    titleBlock: { marginBottom: 10, alignItems: "center" },
+                    cellLabel: { color: "#475569" },
+                    titleCategory: { fontFamily: "Times-Bold", fontSize: 15, letterSpacing: 2.2, color: "#0f172a", borderTopWidth: 1.5, borderTopColor: accent, borderBottomWidth: 1.5, borderBottomColor: accent, paddingVertical: 4, paddingHorizontal: 22 },
+                    resultsGroup: { borderRadius: 0, borderColor: line, marginBottom: 8 },
+                    sectionHeaderRow: { backgroundColor: "#eef2f7", borderBottomColor: line },
+                    sectionAccent: { width: 0, marginRight: 0 },
+                    sectionHeaderText: { fontFamily: "Times-Bold", fontSize: 10.5, letterSpacing: 0.6 },
+                    tableHeaderRow: { backgroundColor: "#e2e8f0", borderBottomColor: line },
+                    tableRow: { borderBottomColor: "#d5dde7" },
+                    widalBlock: { borderRadius: 0, borderColor: line },
+                    notesBlock: { borderRadius: 0, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cbd5e1", borderLeftWidth: 3, borderLeftColor: accent },
+                    notesLabel: { fontFamily: "Times-Bold", color: "#0f172a" },
+                    sigName: { fontFamily: "Times-Bold" },
+                    footerBar: { borderTopWidth: 0.75, borderTopColor: line },
+                },
+            };
+        }
+
+        // ── Executive Band: full-width brand header, tinted panels, coloured table header ──
+        case "executive": {
+            const fg = onColor(accent);
+            const soft = fg === "#ffffff" ? tint(accent, 0.78) : shade(accent, 0.5);
+            const ink = fg === "#ffffff" ? accent : shade(accent, 0.4); // accent-coloured text on white
+            return {
+                headerLayout: "split",
+                footerArt: "strip",
+                zebra: tint(accent, 0.97),
+                styles: {
+                    headerBand: { backgroundColor: accent, paddingTop: 22, paddingBottom: 18, alignItems: "center" },
+                    logoStack: { width: 86, marginRight: 14, padding: 6, backgroundColor: "#ffffff", borderRadius: 6, alignItems: "center" },
+                    labName: { color: fg, fontSize: 20, marginBottom: 4 },
+                    labDetail: { color: soft, fontFamily: "Helvetica" },
+                    reportNumberTitle: { color: soft },
+                    reportNumber: { color: fg, fontFamily: "Helvetica-Bold" },
+                    reportDateText: { color: fg },
+                    statusPill: { backgroundColor: fg },
+                    statusPillText: { color: fg === "#ffffff" ? accent : "#ffffff" },
+                    headerLine: { height: 0, marginHorizontal: 0 },
+                    body: { paddingTop: 18 },
+                    patientBlock: { backgroundColor: tint(accent, 0.93), borderLeftWidth: 0, borderTopWidth: 2, borderTopColor: accent, borderRadius: 4 },
+                    cellLabel: { color: fg === "#ffffff" ? shade(accent, 0.15) : ink },
+                    titleCategory: { color: ink, borderBottomWidth: 0, letterSpacing: 2.6, fontSize: 13.5 },
+                    resultsGroup: { borderColor: tint(accent, 0.62), borderRadius: 5 },
+                    sectionHeaderRow: { backgroundColor: tint(accent, 0.9), borderBottomColor: tint(accent, 0.62) },
+                    sectionHeaderText: { color: shade(accent, 0.3) },
+                    tableHeaderRow: { backgroundColor: accent, borderBottomColor: accent },
+                    colHeaderText: { color: fg },
+                    tableRow: { borderBottomColor: tint(accent, 0.88) },
+                    widalHeader: { backgroundColor: tint(accent, 0.93) },
+                    widalColsRow: { backgroundColor: tint(accent, 0.9) },
+                    endRule: { borderTopColor: tint(accent, 0.6) },
+                    endText: { color: shade(accent, 0.1) },
+                    footerBar: { paddingBottom: 5 },
+                    footerStrip: { position: "absolute", bottom: 0, left: 0, right: 0, height: 5, backgroundColor: accent },
+                },
+            };
+        }
+
+        // ── Minimal: hairlines, white space, no fills ──
+        case "minimal": {
+            const ink = onColor(accent) === "#ffffff" ? accent : shade(accent, 0.4); // readable on white
+            return {
+                headerLayout: "split",
+                footerArt: "none",
+                zebra: "#ffffff",
+                styles: {
+                    headerBand: { paddingTop: 30, paddingBottom: 14 },
+                    labName: { color: "#0f172a", fontSize: 18, letterSpacing: -0.3 },
+                    labDetail: { fontFamily: "Helvetica", color: "#64748b", fontSize: 8.5 },
+                    reportNumberTitle: { color: "#94a3b8" },
+                    reportNumber: { color: "#0f172a", fontFamily: "Helvetica-Bold" },
+                    reportDateText: { fontFamily: "Helvetica", color: "#475569", fontSize: 8.5 },
+                    statusPill: { backgroundColor: "#ffffff", borderWidth: 0.75, borderColor: accent },
+                    statusPillText: { color: ink },
+                    headerLine: { height: 0.75, backgroundColor: "#0f172a" },
+                    body: { paddingTop: 16 },
+                    patientBlock: { backgroundColor: "#ffffff", borderRadius: 0, borderLeftWidth: 0, borderTopWidth: 0.5, borderBottomWidth: 0.5, borderTopColor: "#cbd5e1", borderBottomColor: "#cbd5e1", paddingHorizontal: 0, paddingVertical: 11 },
+                    cellLabel: { color: "#94a3b8" },
+                    titleBlock: { alignItems: "flex-start" },
+                    titleCategory: { fontSize: 11, letterSpacing: 3.2, color: ink, borderBottomWidth: 0, paddingBottom: 0 },
+                    resultsGroup: { borderWidth: 0, borderRadius: 0, backgroundColor: "#ffffff", marginBottom: 14 },
+                    sectionHeaderRow: { backgroundColor: "#ffffff", paddingHorizontal: 0, borderBottomWidth: 0.75, borderBottomColor: "#0f172a" },
+                    sectionAccent: { width: 0, marginRight: 0 },
+                    sectionHeaderText: { fontSize: 8.5, letterSpacing: 1.4 },
+                    tableHeaderRow: { backgroundColor: "#ffffff", paddingHorizontal: 0, borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1" },
+                    colHeaderText: { color: "#94a3b8" },
+                    tableRow: { paddingHorizontal: 0, borderBottomWidth: 0.4, borderBottomColor: "#e5e7eb" },
+                    tableRowAbnormal: { paddingHorizontal: 0, backgroundColor: "#ffffff", borderBottomColor: "#fecaca" },
+                    normalMark: { backgroundColor: "#ffffff" },
+                    widalBlock: { margin: 0, marginTop: 8, borderWidth: 0.5, borderRadius: 0, borderColor: "#cbd5e1" },
+                    widalHeader: { backgroundColor: "#ffffff" },
+                    widalColsRow: { backgroundColor: "#ffffff" },
+                    notesBlock: { backgroundColor: "#ffffff", borderRadius: 0, borderLeftWidth: 2 },
+                    footerBar: { borderTopWidth: 0.5, borderTopColor: "#cbd5e1" },
+                },
+            };
+        }
+
+        // ── Modern (default): the original design, unchanged ──
+        default:
+            return { headerLayout: "split", footerArt: "geometric", zebra: "#f8fafc", styles: {} };
+    }
+}
+
+function buildStyles(accent: string, theme: Theme) {
+    const base = baseStyles(accent);
+    for (const key of Object.keys(theme.styles)) {
+        base[key] = { ...(base[key] ?? {}), ...theme.styles[key] };
+    }
+    return StyleSheet.create(base);
+}
+
+
+export default function LabReportPDF({ report, reports, settings }: Props) {
+    const accent = settings.accentColor || "#0f766e"; // Elegant teal default
+    
+    // 1. Removed time from format, only date is shown
+    const fmtDatetime = (d: Date | string) => format(new Date(d), "dd/MM/yyyy");
+
+    const reportsList = reports && reports.length > 0 
+        ? reports 
+        : report 
+            ? [report] 
+            : [];
+
+    if (reportsList.length === 0) {
+        return null;
+    }
+
+    const reportDate = reportsList[0]?.collectedAt || reportsList[0]?.createdAt || new Date();
+    const dateStr = format(new Date(reportDate), "dd-MM");
+
+    const docTitle = reportsList.length === 1
+        ? `${reportsList[0].reportNumber} - ${reportsList[0].patient.name}`
+        : `${reportsList[0].patient.patientCode} - ${reportsList[0].patient.name} - ${dateStr} - Combined Reports`;
+
+    const theme = themeFor(normalizeReportTemplate(settings.reportTemplate), accent);
+    const S = buildStyles(accent, theme);
 
     return (
         <Document title={docTitle} author={settings.labName}>
@@ -811,6 +1043,7 @@ export default function LabReportPDF({ report, reports, settings }: Props) {
                     report={r}
                     settings={settings}
                     S={S}
+                    theme={theme}
                     fmtDatetime={fmtDatetime}
                     accent={accent}
                 />
