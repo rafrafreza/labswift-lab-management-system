@@ -6,6 +6,7 @@ import { ProtectedRoute } from "@/components/routing/ProtectedRoute";
 
 const AnalyticsPage     = lazy(() => import("@/pages/admin/AnalyticsPage"));
 const DoctorsPage       = lazy(() => import("@/pages/admin/DoctorsPage"));
+const FinancialsPage    = lazy(() => import("@/pages/admin/FinancialsPage"));
 const IncentivesPage    = lazy(() => import("@/pages/admin/IncentivesPage"));
 const SettingsPage      = lazy(() => import("@/pages/admin/SettingsPage"));
 const EditTemplatePage  = lazy(() => import("@/pages/admin/templates/EditTemplatePage"));
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/admin/settings" element={<SettingsPage />} />
             <Route path="/admin/doctors" element={<DoctorsPage />} />
             <Route path="/admin/incentives" element={<IncentivesPage />} />
+            <Route path="/admin/financials" element={<FinancialsPage />} />
           </Route>
         </Route>
 
