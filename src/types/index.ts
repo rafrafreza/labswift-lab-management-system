@@ -184,6 +184,7 @@ export type LabSettings = {
   labPhone: string;
   labEmail: string;
   labWebsite: string | null;
+  tagline: string | null;
   logoUrl: string | null;
   signatureUrl: string | null;
   useSignature?: boolean;
