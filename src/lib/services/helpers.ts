@@ -193,6 +193,7 @@ export function mapSettings(row: any): LabSettings {
     labPhone: row.labPhone,
     labEmail: row.labEmail,
     labWebsite: row.labWebsite ?? null,
+    tagline: row.tagline ?? null,
     logoUrl: row.logoUrl ?? null,
     signatureUrl: row.signatureUrl ?? null,
     useSignature: row.useSignature !== undefined ? Boolean(row.useSignature) : Boolean(row.signatureUrl),
