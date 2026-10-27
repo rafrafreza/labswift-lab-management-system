@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FlaskConical, LogIn, Eye, EyeOff, Lock, Mail, ShieldCheck, Linkedin } from "lucide-react";
 import { toast } from "sonner";
 
-import { supabase } from "@/lib/supabase";
+import { authLinkError, authLinkType, supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
@@ -14,8 +14,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [error, setError] = useState(authLinkError ?? "");
+  const [isSettingPassword, setIsSettingPassword] = useState(authLinkType === "recovery" || authLinkType === "invite");
   const [newPassword, setNewPassword] = useState("");
   const [settingLoading, setSettingLoading] = useState(false);
 
@@ -67,7 +67,9 @@ export default function LoginPage() {
 
   async function handleForgotPassword() {
     if (!email) { setError("Enter your email address first"); return; }
-    await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` });
+    if (error) { setError(error.message); return; }
+    setError("");
     toast.success("Password reset link sent to your email");
   }
 
