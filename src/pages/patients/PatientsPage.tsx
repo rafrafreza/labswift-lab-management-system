@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search, User } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 import { listPatients } from "@/lib/services/patients";
 import { formatAge, formatDate, GENDER_LABELS } from "@/lib/utils";
@@ -24,14 +25,22 @@ export default function PatientsPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  // Only the latest request may update the screen (slow earlier responses are dropped)
+  const requestId = useRef(0);
+
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     try {
       const data = await listPatients({ page, limit: PAGE_SIZE, search: query });
+      if (id !== requestId.current) return;
       setPatients(data.patients);
       setTotal(data.total);
+    } catch (err) {
+      if (id !== requestId.current) return;
+      toast.error(err instanceof Error ? err.message : "Failed to load patients");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [page, query]);
 
@@ -73,7 +82,7 @@ export default function PatientsPage() {
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="data-table">
+          <table className={`data-table transition-opacity ${loading && patients.length > 0 ? "opacity-50" : ""}`}>
             <thead>
               <tr>
                 <th>Patient ID</th>
@@ -86,7 +95,7 @@ export default function PatientsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && patients.length === 0 ? (
                 [...Array(6)].map((_, index) => (
                   <tr key={index}>
                     {[...Array(7)].map((_, column) => (

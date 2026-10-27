@@ -13,7 +13,7 @@ export default function TemplatesPage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await listTemplates(false);
+      const data = await listTemplates(false, true);
       setTemplates(data);
     } finally {
       setLoading(false);

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { Session, User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
+import { invalidate } from "@/lib/cache";
 import { getProfile } from "@/lib/services/profiles";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -124,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
+    invalidate(); // drop cached settings / templates / doctors
     activeUserIdRef.current = null;
     setUser(null);
     setSession(null);
