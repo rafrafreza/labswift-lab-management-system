@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { listDoctors } from "@/lib/services/doctors";
+import { validatePatientForm } from "@/lib/validation";
 import { deletePatient, getPatient, updatePatient } from "@/lib/services/patients";
 import type { Doctor } from "@/types";
 import DoctorSearchSelect from "@/components/shared/DoctorSearchSelect";
@@ -64,14 +65,7 @@ export default function EditPatientPage() {
   }, [id, navigate]);
 
   function validate() {
-    const e: Record<string, string> = {};
-    if (!name.trim()) e.name = "Name is required";
-    const numAge = age === "" ? 0 : Number(age);
-    const numMonths = ageMonths === "" ? 0 : Number(ageMonths);
-    if (isNaN(numAge) || numAge < 0 || numAge > 150) e.age = "Enter a valid age in years";
-    if (isNaN(numMonths) || numMonths < 0 || numMonths > 11) e.ageMonths = "0 to 11 months";
-    if (age === "" && ageMonths === "") e.age = "Age is required (years or months)";
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Invalid email";
+    const e = validatePatientForm({ name, age, ageMonths, phone, email });
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -204,8 +198,8 @@ export default function EditPatientPage() {
         <div>
           <h2 className="mb-4 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">Contact Details</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Phone Number" id="phone" hint="optional">
-              <input id="phone" type="tel" className="form-input"
+            <Field label="Phone Number" id="phone" hint="optional" error={errors.phone}>
+              <input id="phone" type="tel" maxLength={20} className={`form-input ${errors.phone ? "form-input-error" : ""}`}
                 value={phone} onChange={(e) => setPhone(e.target.value)} />
             </Field>
             <Field label="Email" id="email" hint="optional" error={errors.email}>
@@ -215,7 +209,7 @@ export default function EditPatientPage() {
             </Field>
             <div className="col-span-2">
               <Field label="Address" id="address" hint="optional">
-                <textarea id="address" rows={2} className="form-input resize-none"
+                <textarea id="address" rows={2} maxLength={300} className="form-input resize-none"
                   value={address} onChange={(e) => setAddress(e.target.value)} />
               </Field>
             </div>

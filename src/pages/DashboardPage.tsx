@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { ErrorState, getLoadErrorMessage } from "@/components/shared/PageState";
 import { getDashboardStats } from "@/lib/services/analytics";
 import { getRecentReports } from "@/lib/services/reports";
 import { getSettings } from "@/lib/services/settings";
@@ -57,26 +58,35 @@ export default function DashboardPage() {
   const [recent, setRecent] = useState<ReportWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [labName, setLabName] = useState("Your Lab");
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [statsData, recentReports, settings] = await Promise.all([
-          getDashboardStats(),
-          getRecentReports(6),
-          getSettings(),
-        ]);
-        setStats(statsData);
-        setRecent(recentReports);
-        setLabName(settings.labName || "Your Lab");
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    // The lab name is cosmetic: never let it block (or fail) the dashboard
+    getSettings()
+      .then((settings) => setLabName(settings.labName || "Your Lab"))
+      .catch(() => {});
+    try {
+      const [statsData, recentReports] = await Promise.all([getDashboardStats(), getRecentReports(6)]);
+      setStats(statsData);
+      setRecent(recentReports);
+    } catch (err) {
+      setError(getLoadErrorMessage(err));
+    } finally {
+      setLoading(false);
     }
-    void load();
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   const today = formatDate(new Date());
+
+  if (error && !stats) {
+    return <ErrorState title="Couldn't load the dashboard" message={error} onRetry={() => void load()} />;
+  }
 
   return (
     <div className="space-y-6">

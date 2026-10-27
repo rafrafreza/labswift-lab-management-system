@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -24,8 +24,10 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 
 import PaymentModal from "@/components/shared/PaymentModal";
+import { ErrorState, getLoadErrorMessage, isNotFoundError } from "@/components/shared/PageState";
 import ReportRowDownload from "@/components/shared/ReportRowDownload";
 import { getPatient } from "@/lib/services/patients";
+import { draftPdfMessage } from "@/lib/reportRules";
 import { getReport } from "@/lib/services/reports";
 import { getSettings } from "@/lib/services/settings";
 import {
@@ -49,12 +51,20 @@ export default function PatientDetailPage() {
   const [downloadingCombined, setDownloadingCombined] = useState(false);
   const [paymentModalReport, setPaymentModalReport] = useState<ReportWithRelations | null>(null);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState<{ notFound: boolean; message: string } | null>(null);
+
+  const loadPatient = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     getPatient(id)
       .then(setPatient)
-      .catch(() => navigate("/patients", { replace: true }))
+      .catch((err) => setLoadError({ notFound: isNotFoundError(err), message: getLoadErrorMessage(err) }))
       .finally(() => setLoading(false));
-  }, [id, navigate]);
+  }, [id]);
+
+  useEffect(() => {
+    loadPatient();
+  }, [loadPatient]);
 
   // Sort reports latest to oldest
   const sortedReports = useMemo(() => {
@@ -114,9 +124,7 @@ export default function PatientDetailPage() {
   }, [sortedReports]);
 
   // Selection handlers
-  const toggleSelectReport = (reportId: string, e?: React.MouseEvent) => {
-    e?.preventDefault();
-    e?.stopPropagation();
+  const toggleSelectReport = (reportId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(reportId)) next.delete(reportId);
@@ -153,6 +161,13 @@ export default function PatientDetailPage() {
   // Download combined PDF of all selected reports
   const handleDownloadCombined = async () => {
     if (selectedIds.size === 0 || !patient) return;
+
+    const drafts = sortedReports.filter((r) => selectedIds.has(r.id) && r.status === "DRAFT");
+    if (drafts.length > 0) {
+      toast.error(draftPdfMessage(drafts.map((r) => r.reportNumber)));
+      return;
+    }
+
     setDownloadingCombined(true);
     try {
       const selectedReportIds = sortedReports.filter((r) => selectedIds.has(r.id)).map((r) => r.id);
@@ -200,8 +215,23 @@ export default function PatientDetailPage() {
     );
   }
 
-  if (!patient) {
-    return null;
+  if (loadError || !patient) {
+    return loadError?.notFound ? (
+      <ErrorState
+        title="Patient not found"
+        message="This patient doesn't exist or may have been removed."
+        backTo="/patients"
+        backLabel="Back to patients"
+      />
+    ) : (
+      <ErrorState
+        title="Couldn't load this patient"
+        message={loadError?.message}
+        onRetry={loadPatient}
+        backTo="/patients"
+        backLabel="Back to patients"
+      />
+    );
   }
 
   const infoRows = [
@@ -437,14 +467,20 @@ export default function PatientDetailPage() {
                           >
                             {/* Checkbox for Multi-Select */}
                             <div
-                              onClick={(e) => toggleSelectReport(report.id, e)}
+                              // The padding around the box is a larger click target; clicks on the box itself are
+                              // handled by its onChange (calling preventDefault on a controlled checkbox's click
+                              // makes the browser undo React's update, leaving a stale tick).
+                              onClick={(e) => {
+                                if (e.target === e.currentTarget) toggleSelectReport(report.id);
+                              }}
                               className="p-1 -m-1 rounded hover:bg-slate-200/50 cursor-pointer flex-shrink-0"
                               title="Toggle select report"
                             >
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => {}} // handled by parent onClick
+                                onChange={() => toggleSelectReport(report.id)}
+                                aria-label={`Select report ${report.reportNumber}`}
                                 className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
                               />
                             </div>
