@@ -14,8 +14,12 @@ function originOf(url: string) {
 }
 
 serve(async (request) => {
-  const appUrl = Deno.env.get("APP_URL") ?? "http://localhost:5173";
-  // Only the app itself may call this function from a browser. ALLOWED_ORIGINS (comma separated) adds extras.
+  const configuredAppUrl = Deno.env.get("APP_URL") ?? "";
+  const appUrl = configuredAppUrl || "http://localhost:5173";
+  // When APP_URL is set, only that origin (plus ALLOWED_ORIGINS, comma separated) may call this function from a
+  // browser. When it is NOT set we cannot know which site is yours, so any origin is accepted rather than breaking
+  // invites; the admin check below is the real protection (a request needs an admin's access token either way).
+  const strictOrigins = Boolean(configuredAppUrl);
   const allowedOrigins = new Set(
     [originOf(appUrl), ...(Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((o) => o.trim())].filter(Boolean),
   );
@@ -25,7 +29,7 @@ serve(async (request) => {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     Vary: "Origin",
   };
-  if (allowedOrigins.has(requestOrigin)) {
+  if (requestOrigin && (!strictOrigins || allowedOrigins.has(requestOrigin))) {
     corsHeaders["Access-Control-Allow-Origin"] = requestOrigin;
   }
 
@@ -113,7 +117,9 @@ serve(async (request) => {
 
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { name },
-      redirectTo: `${originOf(appUrl) || appUrl}/login`,
+      // The invite email links back to the site the admin is using (or APP_URL when it is configured).
+      // Supabase additionally only honours addresses on the project's Redirect URLs allow-list.
+      redirectTo: `${(!strictOrigins && originOf(requestOrigin)) || originOf(appUrl) || appUrl}/login`,
     });
 
     if (inviteError) {

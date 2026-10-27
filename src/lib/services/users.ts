@@ -43,7 +43,7 @@ export async function inviteUser(payload: { email: string; name: string; role: R
   if (error) {
     const lower = error.message.toLowerCase();
     const message = lower.includes("network request failed") || lower.includes("failed to fetch") || lower.includes("cors")
-      ? "Invite function is not deployed or not accessible. Deploy the Supabase Edge Function and configure CORS for your app."
+      ? "Could not reach the invite function. Make sure it is deployed (supabase functions deploy invite-user) and, if the APP_URL secret is set, that it matches the address of this site."
       : error.message;
     throw new Error(message);
   }
