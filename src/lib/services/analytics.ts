@@ -2,7 +2,6 @@ import { startOfDay, startOfMonth } from "date-fns";
 
 import { supabase } from "@/lib/supabase";
 import { mapDashboardStats } from "@/lib/services/helpers";
-import { listTemplates } from "@/lib/services/templates";
 
 export async function getDashboardStats() {
   const todayStart = startOfDay(new Date()).toISOString();
@@ -14,14 +13,14 @@ export async function getDashboardStats() {
     reportsTodayRes,
     reportsMonthRes,
     draftsRes,
-    reportsForTopTestsRes,
+    templateUsageRes,
   ] = await Promise.all([
     supabase.from("patients").select("id", { count: "exact", head: true }),
     supabase.from("reports").select("id", { count: "exact", head: true }),
     supabase.from("reports").select("id", { count: "exact", head: true }).gte("createdAt", todayStart),
     supabase.from("reports").select("id", { count: "exact", head: true }).gte("createdAt", monthStart),
     supabase.from("reports").select("id", { count: "exact", head: true }).eq("status", "DRAFT"),
-    supabase.from("reports").select("templateId"),
+    supabase.from("test_templates").select("id, name, reports(count)"),
   ]);
 
   const errors = [
@@ -30,28 +29,18 @@ export async function getDashboardStats() {
     reportsTodayRes.error,
     reportsMonthRes.error,
     draftsRes.error,
-    reportsForTopTestsRes.error,
+    templateUsageRes.error,
   ].filter(Boolean);
 
   if (errors.length > 0) {
     throw new Error(errors[0]?.message ?? "Failed to load analytics.");
   }
 
-  const templates = await listTemplates(false);
-  const nameMap = new Map(templates.map((template) => [template.id, template.name]));
-  const counts = new Map<string, number>();
-
-  for (const row of reportsForTopTestsRes.data ?? []) {
-    counts.set(row.templateId, (counts.get(row.templateId) ?? 0) + 1);
-  }
-
-  const topTests = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([templateId, count]) => ({
-      name: nameMap.get(templateId) ?? "Unknown",
-      count,
-    }));
+  const topTests = (templateUsageRes.data ?? [])
+    .map((t: any) => ({ name: t.name as string, count: Number(t.reports?.[0]?.count ?? 0) }))
+    .filter((t) => t.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
   return mapDashboardStats({
     totalPatients: totalPatientsRes.count,

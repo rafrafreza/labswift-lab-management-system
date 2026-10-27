@@ -24,6 +24,17 @@ export async function listPatients(params: { page: number; limit: number; search
   return { patients: (data ?? []).map(mapPatient), total: count ?? 0 };
 }
 
+/** Just the patient row (no reports), e.g. to preselect a patient when starting a report. */
+export async function getPatientBasic(id: string) {
+  const { data, error } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (error) throw new Error(error.message);
+  return mapPatient(data);
+}
+
+/**
+ * Patient plus a light list of their reports. Result values are reduced to their isAbnormal flag
+ * (enough for the abnormal badge); fetch the full report with getReport when values are needed.
+ */
 export async function getPatient(id: string) {
   const { data, error } = await supabase
     .from("patients")
@@ -52,20 +63,7 @@ export async function getPatient(id: string) {
         updatedAt,
         template:test_templates!reports_templateId_fkey (id, name, category, price),
         createdBy:profiles!reports_createdById_fkey (name),
-        values:report_values (
-          id,
-          fieldId,
-          value,
-          isAbnormal,
-          field:template_fields!report_values_fieldId_fkey (
-            fieldName, unit, fieldType,
-            normalRangeText, normalRangeTextMale, normalRangeTextFemale,
-            normalRangeMin, normalRangeMax,
-            normalRangeMinMale, normalRangeMaxMale,
-            normalRangeMinFemale, normalRangeMaxFemale,
-            section, sortOrder, isBold
-          )
-        )
+        values:report_values (isAbnormal)
       )
     `)
     .eq("id", id)

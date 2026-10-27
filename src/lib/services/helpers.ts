@@ -91,7 +91,10 @@ export function mapTemplate(row: any): TemplateWithFields {
       .map(mapTemplateField)
       .sort((a: TemplateField, b: TemplateField) => a.sortOrder - b.sortOrder),
     _count: {
-      reports: Array.isArray(row.reports) ? row.reports.length : row._count?.reports ?? 0,
+      // reports(count) arrives as [{ count: n }]; a plain id list is counted by length
+      reports: Array.isArray(row.reports)
+        ? typeof row.reports[0]?.count === "number" ? row.reports[0].count : row.reports.length
+        : row._count?.reports ?? 0,
     },
   };
 }
