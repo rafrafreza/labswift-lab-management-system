@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
+import { preloadPdfEngine } from "@/lib/preload";
 import { getReport } from "@/lib/services/reports";
 import { getSettings } from "@/lib/services/settings";
 
@@ -48,6 +49,7 @@ export default function ReportRowDownload({ reportId, reportNumber, patientName 
   return (
     <button
       onClick={handleDownload}
+      onMouseEnter={preloadPdfEngine}
       disabled={loading}
       title="Download PDF"
       className="btn btn-ghost btn-icon btn-sm text-slate-400 hover:text-blue-700"
