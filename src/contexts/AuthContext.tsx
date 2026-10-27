@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
@@ -25,10 +25,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile]   = useState<Profile | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  // Id of the user whose profile is loaded (or loading). Auth events for the same user
+  // (token refresh, tab refocus, INITIAL_SESSION) must not reset the app to the loading screen.
+  const activeUserIdRef = useRef<string | null>(null);
 
   const loading = !sessionReady || !profileReady;
 
   async function syncProfile(nextUser: User | null) {
+    activeUserIdRef.current = nextUser?.id ?? null;
     if (!nextUser) {
       setProfile(null);
       setProfileReady(true);
@@ -43,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setSession(null);
         setProfile(null);
+        activeUserIdRef.current = null;
         toast.error("Your account is inactive. Contact an administrator.");
         setProfileReady(true);
         return;
@@ -66,16 +71,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setSessionReady(true);
+      // The listener below may already have started loading this user's profile
+      if (activeUserIdRef.current === (data.session?.user?.id ?? null) && activeUserIdRef.current !== null) return;
       void syncProfile(data.session?.user ?? null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
+      const nextUser = nextSession?.user ?? null;
+
+      // Same user (token refresh, tab refocus, duplicate INITIAL_SESSION): keep the session
+      // fresh but leave the profile and the current screen alone.
+      if (nextUser && nextUser.id === activeUserIdRef.current) {
+        setSession(nextSession);
+        return;
+      }
+
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
+      setUser(nextUser);
       setSessionReady(true);
       setProfileReady(false);
-      void syncProfile(nextSession?.user ?? null);
+      void syncProfile(nextUser);
     });
 
     return () => {
@@ -84,15 +100,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // ✅ FIX: Refresh token when user comes back to the tab
-  // Prevents auto-logout after ~1 hour of inactivity in background tabs
+  // Refresh the token when the user returns to a tab that has been in the background,
+  // but only if it is close to expiring (avoids a network call on every tab switch).
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible") {
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          await supabase.auth.refreshSession();
-        }
+      if (document.visibilityState !== "visible") return;
+      const { data } = await supabase.auth.getSession();
+      const expiresAt = data.session?.expires_at;
+      if (data.session && expiresAt && expiresAt * 1000 - Date.now() < 5 * 60 * 1000) {
+        await supabase.auth.refreshSession();
       }
     };
 
@@ -108,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
+    activeUserIdRef.current = null;
     setUser(null);
     setSession(null);
     setProfile(null);

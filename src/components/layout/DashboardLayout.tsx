@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -22,7 +22,22 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
+import { preloadCommonRoutes, preloadRoute } from "@/lib/preload";
 import { cn } from "@/lib/utils";
+
+// Shown inside the layout while a page's code loads, so the sidebar and header never disappear
+function ContentLoader() {
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-200/70" />
+      <div className="h-4 w-72 animate-pulse rounded bg-slate-200/50" />
+      <div className="grid grid-cols-2 gap-4 pt-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-200/50" />)}
+      </div>
+      <div className="h-64 animate-pulse rounded-2xl bg-slate-200/40" />
+    </div>
+  );
+}
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
@@ -46,6 +61,10 @@ export default function DashboardLayout() {
   const { profile, isAdmin, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    preloadCommonRoutes();
+  }, []);
+
   function isActive(href: string, exact = false) {
     if (exact) return location.pathname === href;
     return location.pathname.startsWith(href);
@@ -66,6 +85,9 @@ export default function DashboardLayout() {
       <Link
         to={item.href}
         onClick={() => setSidebarOpen(false)}
+        onMouseEnter={() => preloadRoute(item.href)}
+        onFocus={() => preloadRoute(item.href)}
+        onTouchStart={() => preloadRoute(item.href)}
         className={cn(
           "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150",
           active
@@ -207,7 +229,9 @@ export default function DashboardLayout() {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl p-4 lg:p-6 animate-page-in">
-            <Outlet />
+            <Suspense fallback={<ContentLoader />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>
