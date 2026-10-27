@@ -335,24 +335,8 @@ export async function updateReport(
     updatePayload.paymentStatus = input.paymentStatus ?? "PAID";
   }
 
-  let { error: reportError } = await supabase
-    .from("reports")
-    .update(updatePayload)
-    .eq("id", id);
-
-  if (reportError && (reportError.message?.includes("billAmount") || reportError.details?.includes("billAmount"))) {
-    // Retry without billing columns in case schema hasn't reloaded yet
-    delete updatePayload.billAmount;
-    delete updatePayload.discountType;
-    delete updatePayload.discount;
-    delete updatePayload.amountPaid;
-    delete updatePayload.paymentStatus;
-    const retry = await supabase.from("reports").update(updatePayload).eq("id", id);
-    reportError = retry.error;
-  }
-
-  if (reportError) throw new Error(reportError.message);
-
+  // Rewrite the values first, while the report is still a draft: once it is FINAL the database locks its values
+  // for non-admins (see 18.sql), so the status change must be the last write.
   const { error: deleteError } = await supabase
     .from("report_values")
     .delete()
@@ -378,6 +362,24 @@ export async function updateReport(
   );
 
   if (insertError) throw new Error(insertError.message);
+
+  let { error: reportError } = await supabase
+    .from("reports")
+    .update(updatePayload)
+    .eq("id", id);
+
+  if (reportError && (reportError.message?.includes("billAmount") || reportError.details?.includes("billAmount"))) {
+    // Retry without billing columns in case schema hasn't reloaded yet
+    delete updatePayload.billAmount;
+    delete updatePayload.discountType;
+    delete updatePayload.discount;
+    delete updatePayload.amountPaid;
+    delete updatePayload.paymentStatus;
+    const retry = await supabase.from("reports").update(updatePayload).eq("id", id);
+    reportError = retry.error;
+  }
+
+  if (reportError) throw new Error(reportError.message);
 
   if (isFinal) {
     await tryCreateIncentive(id, reportRow.patientId, reportRow.templateId, netBillAmount);
