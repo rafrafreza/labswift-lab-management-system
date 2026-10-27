@@ -1,3 +1,5 @@
+import type { ReportTemplateId } from "@/lib/reportTemplates";
+
 export type Role = "ADMIN" | "STAFF";
 export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type ReportStatus = "DRAFT" | "FINAL" | "SENT";
@@ -185,6 +187,7 @@ export type LabSettings = {
   labEmail: string;
   labWebsite: string | null;
   tagline: string | null;
+  reportTemplate: ReportTemplateId;
   logoUrl: string | null;
   signatureUrl: string | null;
   useSignature?: boolean;

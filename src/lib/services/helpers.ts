@@ -1,3 +1,4 @@
+import { normalizeReportTemplate } from "@/lib/reportTemplates";
 import { supabase } from "@/lib/supabase";
 import type {
   DashboardStats,
@@ -194,6 +195,7 @@ export function mapSettings(row: any): LabSettings {
     labEmail: row.labEmail,
     labWebsite: row.labWebsite ?? null,
     tagline: row.tagline ?? null,
+    reportTemplate: normalizeReportTemplate(row.reportTemplate),
     logoUrl: row.logoUrl ?? null,
     signatureUrl: row.signatureUrl ?? null,
     useSignature: row.useSignature !== undefined ? Boolean(row.useSignature) : Boolean(row.signatureUrl),
