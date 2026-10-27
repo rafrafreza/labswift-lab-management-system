@@ -122,7 +122,8 @@ export function formatAge(age?: number | null, ageMonths?: number | null, upperc
   const m = ageMonths != null && !isNaN(Number(ageMonths)) ? Math.max(0, Number(ageMonths)) : 0;
 
   if (uppercaseUnits) {
-    // Explicitly show both Years and Months on PDF reports
+    // PDF reports: always show years (so "0 Yrs 7 Mos" can't be misread as 7 years); show months only when non-zero
+    if (m === 0) return `${y} Yrs`;
     return `${y} Yrs ${m} Mos`;
   }
 
