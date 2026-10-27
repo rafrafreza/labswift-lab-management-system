@@ -20,6 +20,7 @@ type SettingsProps = {
     labPhone: string;
     labEmail: string;
     labWebsite?: string;
+    tagline?: string | null;
     logoUrl?: string;
     signatureUrl?: string;
     useSignature?: boolean;
@@ -91,9 +92,9 @@ function ReportPageContent({
                     {settings.logoUrl ? (
                         <View style={S.logoStack}>
                             <Image src={settings.logoUrl} style={S.logo} />
-                            <Text style={S.logoTagline}>
-                                Precision in Diagnosis,{"\n"}Care in Every Slide.
-                            </Text>
+                            {settings.tagline?.trim() ? (
+                                <Text style={S.logoTagline}>{settings.tagline.trim()}</Text>
+                            ) : null}
                         </View>
                     ) : null}
                     <View style={S.labInfo}>
