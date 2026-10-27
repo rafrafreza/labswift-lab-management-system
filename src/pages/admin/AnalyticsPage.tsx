@@ -24,13 +24,13 @@ import {
   Calendar,
   IndianRupee,
 } from "lucide-react";
-import { format, subDays, startOfDay, eachDayOfInterval, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, subDays, startOfDay, eachDayOfInterval, subMonths, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 
 import { exportBackup } from "@/lib/services/analytics";
 import { supabase } from "@/lib/supabase";
-import { listTemplates } from "@/lib/services/templates";
 import { getIncentiveSummaryByDoctor } from "@/lib/services/doctors";
+import { fetchAll } from "@/lib/services/financials";
 import { formatCurrency } from "@/lib/utils";
 
 const ACCENT   = "#10b981";
@@ -84,11 +84,28 @@ export default function AnalyticsPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [templates, incSummary] = await Promise.all([
-        listTemplates(false),
+      const now = new Date();
+      const trendStart = startOfMonth(subMonths(now, 6));
+
+      // One round of parallel queries; everything else is derived in the browser.
+      const [templatesRes, incSummary, patCountRes, reportRows, patientRows] = await Promise.all([
+        supabase.from("test_templates").select("id, name"),
         getIncentiveSummaryByDoctor(),
+        supabase.from("patients").select("id", { count: "exact", head: true }),
+        fetchAll<any>((from, to) =>
+          supabase
+            .from("reports")
+            .select(
+              "templateId, createdAt, billAmount, discount, discountType, amountPaid, paymentStatus, template:test_templates!reports_templateId_fkey(category)",
+            )
+            .range(from, to) as any,
+        ),
+        fetchAll<{ createdAt: string }>((from, to) =>
+          supabase.from("patients").select("createdAt").gte("createdAt", trendStart.toISOString()).range(from, to) as any,
+        ),
       ]);
 
+      const templates = templatesRes.data ?? [];
       setTemplateCount(templates.length);
       setDocSummary(incSummary.map((s) => ({
         doctorName: `Dr. ${s.doctorName}`,
@@ -96,57 +113,45 @@ export default function AnalyticsPage() {
         paid: s.paid,
         pending: s.pending,
       })));
+      setTotalPatients(patCountRes.count ?? 0);
+      setTotalReports(reportRows.length);
 
-      // ── Total counts ──────────────────────────────────────────────────────
-      const [patRes, repRes, monthRes] = await Promise.all([
-        supabase.from("patients").select("id", { count: "exact", head: true }),
-        supabase.from("reports").select("id", { count: "exact", head: true }),
-        supabase.from("reports").select("id", { count: "exact", head: true })
-          .gte("createdAt", startOfMonth(new Date()).toISOString()),
-      ]);
-      setTotalPatients(patRes.count ?? 0);
-      setTotalReports(repRes.count ?? 0);
-      setReportsThisMonth(monthRes.count ?? 0);
+      const monthStartIso = startOfMonth(now).toISOString();
+      setReportsThisMonth(reportRows.filter((r) => r.createdAt >= monthStartIso).length);
 
       // ── Monthly trend — last 7 months ─────────────────────────────────────
-      const monthlyData: MonthlyPoint[] = [];
+      const monthKeys: { key: string; label: string }[] = [];
       for (let i = 6; i >= 0; i--) {
-        const d   = subMonths(new Date(), i);
-        const from = startOfMonth(d).toISOString();
-        const to   = endOfMonth(d).toISOString();
-        const [rRes, pRes] = await Promise.all([
-          supabase.from("reports").select("id", { count: "exact", head: true })
-            .gte("createdAt", from).lte("createdAt", to),
-          supabase.from("patients").select("id", { count: "exact", head: true })
-            .gte("createdAt", from).lte("createdAt", to),
-        ]);
-        monthlyData.push({
-          month: format(d, "MMM yy"),
-          reports: rRes.count ?? 0,
-          patients: pRes.count ?? 0,
-        });
+        const d = subMonths(now, i);
+        monthKeys.push({ key: format(d, "yyyy-MM"), label: format(d, "MMM yy") });
       }
-      setMonthly(monthlyData);
+      const repByMonth = new Map<string, number>();
+      for (const r of reportRows) {
+        const k = format(new Date(r.createdAt), "yyyy-MM");
+        repByMonth.set(k, (repByMonth.get(k) ?? 0) + 1);
+      }
+      const patByMonth = new Map<string, number>();
+      for (const p of patientRows) {
+        const k = format(new Date(p.createdAt), "yyyy-MM");
+        patByMonth.set(k, (patByMonth.get(k) ?? 0) + 1);
+      }
+      setMonthly(monthKeys.map(({ key, label }) => ({
+        month: label,
+        reports: repByMonth.get(key) ?? 0,
+        patients: patByMonth.get(key) ?? 0,
+      })));
 
-      // ── Category breakdown ────────────────────────────────────────────────
-      const { data: allReports } = await supabase
-        .from("reports")
-        .select("template:test_templates!reports_templateId_fkey(category)");
-
+      // ── Category breakdown + top tests ────────────────────────────────────
       const catMap = new Map<string, number>();
-      for (const r of allReports ?? []) {
-        const cat = (r.template as any)?.category ?? "Other";
+      const cntMap = new Map<string, number>();
+      for (const r of reportRows) {
+        const cat = r.template?.category ?? "Other";
         catMap.set(cat, (catMap.get(cat) ?? 0) + 1);
+        cntMap.set(r.templateId, (cntMap.get(r.templateId) ?? 0) + 1);
       }
       setCategories([...catMap.entries()].sort((a,b)=>b[1]-a[1]).map(([name,value])=>({name,value})));
 
-      // ── Top 7 tests ───────────────────────────────────────────────────────
-      const { data: tmplReports } = await supabase.from("reports").select("templateId");
       const nameMap = new Map(templates.map((t) => [t.id, t.name]));
-      const cntMap  = new Map<string, number>();
-      for (const r of tmplReports ?? []) {
-        cntMap.set(r.templateId, (cntMap.get(r.templateId) ?? 0) + 1);
-      }
       setTopTests(
         [...cntMap.entries()]
           .sort((a,b)=>b[1]-a[1])
@@ -155,18 +160,16 @@ export default function AnalyticsPage() {
       );
 
       // ── Daily activity — last 30 days ─────────────────────────────────────
-      const { data: last30Reports } = await supabase
-        .from("reports")
-        .select("createdAt")
-        .gte("createdAt", subDays(new Date(), 29).toISOString());
-
+      const dayStart = subDays(now, 29);
       const dayMap = new Map<string, number>();
-      eachDayOfInterval({ start: subDays(new Date(), 29), end: new Date() }).forEach((d) => {
+      eachDayOfInterval({ start: dayStart, end: now }).forEach((d) => {
         dayMap.set(format(d, "dd MMM"), 0);
       });
-      for (const r of last30Reports ?? []) {
-        const key = format(new Date(r.createdAt), "dd MMM");
-        dayMap.set(key, (dayMap.get(key) ?? 0) + 1);
+      for (const r of reportRows) {
+        const d = new Date(r.createdAt);
+        if (d < startOfDay(dayStart)) continue;
+        const key = format(d, "dd MMM");
+        if (dayMap.has(key)) dayMap.set(key, (dayMap.get(key) ?? 0) + 1);
       }
       setDaily([...dayMap.entries()].map(([day, count]) => ({ day, count })));
 
@@ -174,34 +177,23 @@ export default function AnalyticsPage() {
       let totRev = 0;
       let monthRev = 0;
       let totDisc = 0;
-      const startOfCurrMonth = startOfMonth(new Date()).toISOString();
+      for (const row of reportRows) {
+        const b = Number(row.billAmount ?? 0);
+        const dVal = Number(row.discount ?? 0);
+        const dAmt = row.discountType === "PERCENT" ? (b * dVal) / 100 : dVal;
+        const net = Math.max(0, b - dAmt);
+        const paid = row.amountPaid != null ? Number(row.amountPaid) : (row.paymentStatus === "PAID" ? net : 0);
 
-      try {
-        const { data: billRows } = await supabase
-          .from("reports")
-          .select("billAmount, discount, discountType, amountPaid, paymentStatus, createdAt, status");
-
-        for (const row of billRows ?? []) {
-          const b = Number(row.billAmount ?? 0);
-          const dVal = Number(row.discount ?? 0);
-          const dAmt = row.discountType === "PERCENT" ? (b * dVal) / 100 : dVal;
-          const net = Math.max(0, b - dAmt);
-          const paid = row.amountPaid != null ? Number(row.amountPaid) : (row.paymentStatus === "PAID" ? net : 0);
-
-          totRev += paid;
-          totDisc += dAmt;
-          if (row.createdAt >= startOfCurrMonth) {
-            monthRev += paid;
-          }
-        }
-      } catch (err) {
-        console.warn("Could not load revenue stats:", err);
+        totRev += paid;
+        totDisc += dAmt;
+        if (row.createdAt >= monthStartIso) monthRev += paid;
       }
-
       setTotalRevenue(totRev);
       setRevenueThisMonth(monthRev);
       setTotalDiscounts(totDisc);
-
+    } catch (err) {
+      console.error("Failed to load analytics:", err);
+      toast.error("Failed to load analytics");
     } finally {
       setLoading(false);
     }
