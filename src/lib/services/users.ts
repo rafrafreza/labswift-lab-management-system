@@ -11,6 +11,14 @@ export async function listUsers() {
 }
 
 export async function updateUser(userId: string, payload: { role?: Role; isActive?: boolean }) {
+  // Guard against locking yourself out (an admin removing their own admin access or deactivating themselves)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.id === userId && (payload.role === "STAFF" || payload.isActive === false)) {
+    throw new Error("You can't remove your own admin access or deactivate your own account.");
+  }
+
   const { data, error } = await supabase.from("profiles").update(payload).eq("id", userId).select("*").single();
   if (error) {
     throw new Error(error.message);

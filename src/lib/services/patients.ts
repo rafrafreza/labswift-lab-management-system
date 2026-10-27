@@ -74,11 +74,8 @@ export async function getPatient(id: string) {
 }
 
 export async function createPatient(input: CreatePatientInput) {
-  const { data: patientCode, error: codeError } = await supabase.rpc("next_patient_code");
-  if (codeError) throw new Error(codeError.message);
-
   const payload: Record<string, any> = {
-    patientCode,
+    patientCode: "",
     name: input.name.trim(),
     age: Number(input.age),
     ageMonths: input.ageMonths != null ? Math.max(0, Math.min(11, Number(input.ageMonths))) : 0,
@@ -91,17 +88,25 @@ export async function createPatient(input: CreatePatientInput) {
     bloodGroup: input.bloodGroup || null,
   };
 
-  let { data, error } = await supabase
-    .from("patients")
-    .insert(payload)
-    .select("*")
-    .single();
+  // The code is issued by a separate call, so two staff registering at the same moment can be handed the
+  // same code. The unique constraint rejects the second insert (23505); fetch a fresh code and try again.
+  let data: any = null;
+  let error: { message?: string; details?: string; code?: string } | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data: patientCode, error: codeError } = await supabase.rpc("next_patient_code");
+    if (codeError) throw new Error(codeError.message);
+    payload.patientCode = patientCode;
 
-  if (error && (error.message?.includes("ageMonths") || error.details?.includes("ageMonths"))) {
-    delete payload.ageMonths;
-    const retry = await supabase.from("patients").insert(payload).select("*").single();
-    data = retry.data;
-    error = retry.error;
+    let res = await supabase.from("patients").insert(payload).select("*").single();
+
+    if (res.error && (res.error.message?.includes("ageMonths") || res.error.details?.includes("ageMonths"))) {
+      delete payload.ageMonths;
+      res = await supabase.from("patients").insert(payload).select("*").single();
+    }
+
+    data = res.data;
+    error = res.error;
+    if (!error || error.code !== "23505") break;
   }
 
   if (error) throw new Error(error.message);
