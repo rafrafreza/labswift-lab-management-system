@@ -1,3 +1,4 @@
+import { cached, invalidate } from "@/lib/cache";
 import { supabase } from "@/lib/supabase";
 import type { Doctor, ReportIncentive } from "@/types";
 
@@ -63,7 +64,13 @@ function mapIncentive(row: any): ReportIncentive {
 
 // ── DOCTORS CRUD ──────────────────────────────────────────────────────────────
 
-export async function listDoctors(activeOnly = false) {
+export function listDoctors(activeOnly = false) {
+  // The picker list (active doctors) is cached; writers below invalidate it
+  if (activeOnly) return cached("doctors:active", 2 * 60 * 1000, () => fetchDoctors(true));
+  return fetchDoctors(false);
+}
+
+async function fetchDoctors(activeOnly: boolean) {
   let query = supabase.from("doctors").select("*").order("name");
   if (activeOnly) query = query.eq("isactive", true);   // ← lowercase
   const { data, error } = await query;
@@ -98,6 +105,7 @@ export async function createDoctor(input: {
     .select("*")
     .single();
   if (error) throw new Error(error.message);
+  invalidate("doctors");
   return mapDoctor(data);
 }
 
@@ -128,12 +136,14 @@ export async function updateDoctor(
     .select("*")
     .single();
   if (error) throw new Error(error.message);
+  invalidate("doctors");
   return mapDoctor(data);
 }
 
 export async function deleteDoctor(id: string) {
   const { error } = await supabase.from("doctors").delete().eq("id", id);
   if (error) throw new Error(error.message);
+  invalidate("doctors");
 }
 
 // ── INCENTIVES ────────────────────────────────────────────────────────────────

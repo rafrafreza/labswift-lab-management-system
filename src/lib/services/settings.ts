@@ -1,7 +1,8 @@
+import { cached, invalidate } from "@/lib/cache";
 import { supabase } from "@/lib/supabase";
 import { mapSettings } from "@/lib/services/helpers";
 
-export async function getSettings() {
+async function fetchSettings() {
   const { data, error } = await supabase.from("lab_settings").select("*").eq("id", "singleton").maybeSingle();
   if (error) {
     throw new Error(error.message);
@@ -23,7 +24,19 @@ export async function getSettings() {
   return mapSettings(created);
 }
 
+export function getSettings() {
+  return cached("settings", 5 * 60 * 1000, fetchSettings);
+}
+
 export async function updateSettings(payload: Record<string, unknown>) {
+  try {
+    return await writeSettings(payload);
+  } finally {
+    invalidate("settings"); // after the write, so a read during the save can't re-cache the old values
+  }
+}
+
+async function writeSettings(payload: Record<string, unknown>) {
   let { data, error } = await supabase
     .from("lab_settings")
     .upsert({ id: "singleton", ...payload }, { onConflict: "id" })

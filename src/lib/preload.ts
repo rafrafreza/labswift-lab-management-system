@@ -25,13 +25,31 @@ export function preloadRoute(href: string) {
   load().catch(() => started.delete(href)); // allow a retry if the network failed
 }
 
-/** Warm the pages staff use most, once the browser is idle. */
-export function preloadCommonRoutes() {
-  const run = () => ["/reports", "/patients", "/reports/new", "/patients/new"].forEach(preloadRoute);
+function whenIdle(run: () => void, timeout: number) {
   const w = window as any;
   if (typeof w.requestIdleCallback === "function") {
-    w.requestIdleCallback(run, { timeout: 4000 });
+    w.requestIdleCallback(run, { timeout });
   } else {
     setTimeout(run, 2000);
   }
+}
+
+/** Warm the pages staff use most, once the browser is idle. */
+export function preloadCommonRoutes() {
+  whenIdle(() => ["/reports", "/patients", "/reports/new", "/patients/new"].forEach(preloadRoute), 4000);
+}
+
+let pdfWarmed = false;
+
+/** Download the (large) PDF engine and the report layout ahead of the first click. */
+export function preloadPdfEngine() {
+  if (pdfWarmed) return;
+  pdfWarmed = true;
+  import("@react-pdf/renderer").catch(() => { pdfWarmed = false; });
+  import("@/components/shared/LabReportPDF").catch(() => { pdfWarmed = false; });
+}
+
+/** Same as preloadPdfEngine, but waits for the browser to be idle (for page-mount use). */
+export function preloadPdfEngineWhenIdle() {
+  whenIdle(preloadPdfEngine, 6000);
 }

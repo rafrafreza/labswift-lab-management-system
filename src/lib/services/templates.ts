@@ -1,3 +1,4 @@
+import { cached, invalidate } from "@/lib/cache";
 import { supabase } from "@/lib/supabase";
 import { mapTemplate, requireUserId } from "@/lib/services/helpers";
 import type { TemplateWithFields } from "@/types";
@@ -29,9 +30,17 @@ export type TemplatePayload = {
 
 const TEMPLATE_SELECT = `
   *,
-  fields:template_fields (*),
-  reports (id)
+  fields:template_fields (*)
 `;
+
+// Adds a per-template report count (aggregated by the database, not a list of ids)
+const TEMPLATE_SELECT_WITH_COUNTS = `
+  *,
+  fields:template_fields (*),
+  reports (count)
+`;
+
+const TEMPLATES_TTL_MS = 2 * 60 * 1000;
 
 function buildFieldRecord(field: TemplatePayload["fields"][number], extra: { templateId?: string; sortOrder: number }) {
   return {
@@ -54,12 +63,24 @@ function buildFieldRecord(field: TemplatePayload["fields"][number], extra: { tem
   };
 }
 
-export async function listTemplates(activeOnly = true) {
-  let query = supabase.from("test_templates").select(TEMPLATE_SELECT).order("category").order("name");
+async function fetchTemplates(activeOnly: boolean, withCounts: boolean) {
+  let query = supabase
+    .from("test_templates")
+    .select(withCounts ? TEMPLATE_SELECT_WITH_COUNTS : TEMPLATE_SELECT)
+    .order("category")
+    .order("name");
   if (activeOnly) query = query.eq("isActive", true);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapTemplate);
+}
+
+/** The picker list (active, no counts) is cached; pass withCounts for the admin Templates page. */
+export function listTemplates(activeOnly = true, withCounts = false) {
+  if (activeOnly && !withCounts) {
+    return cached("templates:active", TEMPLATES_TTL_MS, () => fetchTemplates(true, false));
+  }
+  return fetchTemplates(activeOnly, withCounts);
 }
 
 export async function getTemplate(id: string) {
@@ -87,6 +108,7 @@ export async function createTemplate(payload: TemplatePayload) {
     .single();
 
   if (error) throw new Error(error.message);
+  invalidate("templates");
 
   if (payload.fields.length) {
     const { error: fieldsError } = await supabase.from("template_fields").insert(
@@ -112,6 +134,7 @@ export async function updateTemplate(id: string, payload: TemplatePayload) {
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  invalidate("templates");
 
   const existing = await getTemplate(id);
   const nextIds = payload.fields.filter((f) => f.id).map((f) => f.id as string);
@@ -154,11 +177,13 @@ export async function updateTemplate(id: string, payload: TemplatePayload) {
     }
   }
 
+  invalidate("templates");
   return getTemplate(id);
 }
 
 export async function deleteTemplate(template: TemplateWithFields) {
   const reportCount = template._count?.reports ?? 0;
+  invalidate("templates");
   if (reportCount > 0) {
     const { error } = await supabase.from("test_templates").update({ isActive: false }).eq("id", template.id);
     if (error) throw new Error(error.message);

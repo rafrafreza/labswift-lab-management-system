@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import PaymentModal from "@/components/shared/PaymentModal";
 import ReportRowDownload from "@/components/shared/ReportRowDownload";
 import { getPatient } from "@/lib/services/patients";
+import { getReport } from "@/lib/services/reports";
 import { getSettings } from "@/lib/services/settings";
 import {
   formatAge,
@@ -154,8 +155,10 @@ export default function PatientDetailPage() {
     if (selectedIds.size === 0 || !patient) return;
     setDownloadingCombined(true);
     try {
-      const selectedReports = sortedReports.filter((r) => selectedIds.has(r.id));
-      const [settings, { pdf }, { default: LabReportPDF }] = await Promise.all([
+      const selectedReportIds = sortedReports.filter((r) => selectedIds.has(r.id)).map((r) => r.id);
+      // The patient page only holds light reports; load full ones (with values) for the PDF
+      const [selectedReports, settings, { pdf }, { default: LabReportPDF }] = await Promise.all([
+        Promise.all(selectedReportIds.map((reportId) => getReport(reportId))),
         getSettings(),
         import("@react-pdf/renderer"),
         import("@/components/shared/LabReportPDF"),

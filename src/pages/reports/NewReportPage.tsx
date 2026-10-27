@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { listDoctors } from "@/lib/services/doctors";
-import { listPatients } from "@/lib/services/patients";
+import { getPatientBasic, listPatients } from "@/lib/services/patients";
 import { createReport } from "@/lib/services/reports";
 import { listTemplates } from "@/lib/services/templates";
 import { cn, formatAge, formatCurrency, isValueAbnormal } from "@/lib/utils";
@@ -48,13 +48,10 @@ export default function NewReportPage() {
     if (!preselectedPatientId) {
       return;
     }
-    listPatients({ page: 1, limit: 1000 })
-      .then((data) => {
-        const patient = data.patients.find((item) => item.id === preselectedPatientId);
-        if (patient) {
-          setSelectedPatient(patient);
-          setStep(2);
-        }
+    getPatientBasic(preselectedPatientId)
+      .then((patient) => {
+        setSelectedPatient(patient);
+        setStep(2);
       })
       .catch(console.error);
   }, [preselectedPatientId]);
