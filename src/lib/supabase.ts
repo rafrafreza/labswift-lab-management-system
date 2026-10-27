@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { markPasswordSetupPending } from "@/lib/passwordSetup";
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -12,6 +14,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const authHashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
 export const authLinkType = authHashParams.get("type");
 export const authLinkError = authHashParams.get("error_description");
+
+// An invitation or reset link signs the browser in, so remember (persistently) that a password must still be chosen
+if (authLinkType === "invite" || authLinkType === "recovery") {
+  markPasswordSetupPending(authLinkType);
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

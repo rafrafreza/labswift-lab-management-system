@@ -151,7 +151,7 @@ export default function UsersPage() {
             </div>
           </form>
           <p className="mt-3 text-xs text-slate-500">
-            This uses the Supabase Edge Function included with the project, so invites still stay outside the browser.
+            They receive an email with a one-time link to a page where they create their own password. Nothing is shared with you, and they are not signed in until they have set it.
           </p>
         </div>
       )}
