@@ -7,7 +7,7 @@ import type { CreateReportInput, TemplateField } from "@/types";
 const REPORT_SELECT = `
   *,
   patient:patients!reports_patientId_fkey (
-    id, patientCode, name, age, gender, phone, refDoctor, doctorId,
+    id, patientCode, name, age, ageMonths, gender, phone, refDoctor, doctorId,
     email, address, bloodGroup,
     doctor:doctors!patients_doctorId_fkey (
       name, qualification, specialization
