@@ -1,4 +1,4 @@
--- LabFlow React + Supabase setup
+-- LabSwift React + Supabase setup
 -- Run this file in the Supabase SQL editor.
 
 create extension if not exists "pgcrypto";

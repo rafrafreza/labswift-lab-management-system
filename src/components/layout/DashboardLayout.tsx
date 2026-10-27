@@ -185,7 +185,7 @@ export default function DashboardLayout() {
 
           {/* Breadcrumb */}
           <div className="hidden sm:flex items-center gap-2 text-sm">
-            <span className="text-slate-400 text-[13px]">LabFlow</span>
+            <span className="text-slate-400 text-[13px]">LabSwift</span>
             <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
             <span className="font-semibold text-slate-700 text-[13px]">
               {activeItem?.label ?? "Dashboard"}

@@ -7,7 +7,7 @@ function LoadingScreen() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-3">
         <div className="h-9 w-9 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
-        <p className="text-sm text-slate-500">Loading LabFlow...</p>
+        <p className="text-sm text-slate-500">Loading LabSwift...</p>
       </div>
     </div>
   );

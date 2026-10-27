@@ -7,12 +7,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables.");
 }
 
+// Supabase strips the auth params from the URL as soon as the client initialises,
+// and the PASSWORD_RECOVERY event can fire before LoginPage subscribes, so capture them first.
+const authHashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+export const authLinkType = authHashParams.get("type");
+export const authLinkError = authHashParams.get("error_description");
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: "labflow-auth",
+    storageKey: "labswift-auth",
   },
 });
 

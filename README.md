@@ -1,4 +1,4 @@
-# LabSwift (LabFlow) — Modern Pathology & Laboratory Information System (LIMS)
+# LabSwift — Modern Pathology & Laboratory Information System (LIMS)
 
 ![React](https://img.shields.io/badge/React-18-blue?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
