@@ -128,3 +128,36 @@ export function validatePatientForm(v: {
   if (v.email.trim() && !isValidEmail(v.email)) e.email = "Enter a valid email address";
   return e;
 }
+
+// ── Passwords ───────────────────────────────────────────────────────────────────────────
+
+const COMMON_PASSWORDS = new Set([
+  "password", "password1", "password123", "12345678", "123456789", "1234567890", "qwerty123", "qwertyuiop",
+  "iloveyou", "admin123", "welcome1", "letmein123", "abc12345", "labswift123",
+]);
+
+/** The rules shown to the user while they type; every one must pass. */
+export function passwordChecks(password: string) {
+  return [
+    { label: "At least 8 characters", ok: password.length >= 8 },
+    { label: "A letter and a number", ok: /\p{L}/u.test(password) && /\d/.test(password) },
+  ];
+}
+
+export function validatePassword(
+  password: string,
+  confirm: string,
+  email?: string | null,
+): { password?: string; confirm?: string } {
+  const e: { password?: string; confirm?: string } = {};
+  if (!password) e.password = "Create a password";
+  else if (password.length < 8) e.password = "Use at least 8 characters";
+  else if (password.length > 72) e.password = "Use 72 characters or fewer";
+  else if (!/\p{L}/u.test(password) || !/\d/.test(password)) e.password = "Include at least one letter and one number";
+  else if (COMMON_PASSWORDS.has(password.toLowerCase())) e.password = "That password is too common. Choose something harder to guess";
+  else if (email && password.toLowerCase() === email.toLowerCase()) e.password = "Your password can't be your email address";
+
+  if (!confirm) e.confirm = "Re-enter the password to confirm it";
+  else if (password !== confirm) e.confirm = "The passwords don't match";
+  return e;
+}
