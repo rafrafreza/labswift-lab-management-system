@@ -7,16 +7,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: Date | string): string {
-  return format(new Date(date), "dd MMM yyyy");
+// A missing or malformed date must never crash a page: date-fns throws on an invalid date, so show a dash instead.
+function toValidDate(date: Date | string | null | undefined): Date | null {
+  if (date == null || date === "") return null;
+  const d = new Date(date);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function formatDateTime(date: Date | string): string {
-  return format(new Date(date), "dd MMM yyyy, hh:mm a");
+export function formatDate(date: Date | string | null | undefined): string {
+  const d = toValidDate(date);
+  return d ? format(d, "dd MMM yyyy") : "-";
 }
 
-export function formatRelative(date: Date | string): string {
-  return formatDistanceToNow(new Date(date), { addSuffix: true });
+export function formatDateTime(date: Date | string | null | undefined): string {
+  const d = toValidDate(date);
+  return d ? format(d, "dd MMM yyyy, hh:mm a") : "-";
+}
+
+export function formatRelative(date: Date | string | null | undefined): string {
+  const d = toValidDate(date);
+  return d ? formatDistanceToNow(d, { addSuffix: true }) : "-";
 }
 
 export const STATUS_CONFIG = {
@@ -109,12 +119,13 @@ export function normalizeSearch(value: string): string {
   return value.trim().toLowerCase();
 }
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | null | undefined): string {
+  const value = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(value);
 }
 
 export function formatAge(age?: number | null, ageMonths?: number | null, uppercaseUnits = false): string {

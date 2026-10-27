@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
 import { preloadCommonRoutes, preloadRoute } from "@/lib/preload";
 import { cn } from "@/lib/utils";
 
@@ -229,9 +230,11 @@ export default function DashboardLayout() {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl p-4 lg:p-6 animate-page-in">
-            <Suspense fallback={<ContentLoader />}>
-              <Outlet />
-            </Suspense>
+            <ErrorBoundary resetKey={location.pathname}>
+              <Suspense fallback={<ContentLoader />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

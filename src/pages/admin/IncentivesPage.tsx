@@ -8,6 +8,7 @@ import {
   listIncentives,
   markIncentivePaid,
 } from "@/lib/services/doctors";
+import { ErrorState, getLoadErrorMessage } from "@/components/shared/PageState";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Doctor, ReportIncentive } from "@/types";
 
@@ -20,8 +21,11 @@ export default function IncentivesPage() {
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
+    setLoadError(null);
     try {
       const [docs, summ] = await Promise.all([listDoctors(), getIncentiveSummaryByDoctor()]);
       setDoctors(docs);
@@ -32,6 +36,8 @@ export default function IncentivesPage() {
         isPaid: filterPaid === "ALL" ? undefined : filterPaid === "PAID",
       });
       setIncentives(rows);
+    } catch (err) {
+      setLoadError(getLoadErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -174,10 +180,34 @@ export default function IncentivesPage() {
                   <td key={c}><div className="h-4 animate-pulse rounded bg-slate-100" /></td>
                 ))}</tr>
               ))
+            ) : loadError ? (
+              <tr>
+                <td colSpan={9}>
+                  <ErrorState title="Couldn't load incentives" message={loadError} onRetry={() => void load()} />
+                </td>
+              </tr>
             ) : incentives.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-sm text-slate-400">
-                  No incentives found for the selected filters.
+                  {filterDoctor || filterPaid !== "ALL" ? (
+                    <>
+                      <p>No incentives match these filters.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setFilterDoctor(""); setFilterPaid("ALL"); }}
+                        className="mt-2 text-xs font-medium text-teal-700 hover:underline"
+                      >
+                        Show all incentives
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-slate-500">No incentives yet</p>
+                      <p className="mt-1 text-xs">
+                        They appear when a report is finalised for a patient who was referred by a doctor.
+                      </p>
+                    </>
+                  )}
                 </td>
               </tr>
             ) : (

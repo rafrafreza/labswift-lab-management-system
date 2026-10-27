@@ -4,7 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { listDoctors } from "@/lib/services/doctors";
-import { createPatient } from "@/lib/services/patients";
+import { validatePatientForm } from "@/lib/validation";
+import { createPatient, findDuplicatePatient } from "@/lib/services/patients";
 import type { Doctor } from "@/types";
 import DoctorSearchSelect from "@/components/shared/DoctorSearchSelect";
 
@@ -47,14 +48,7 @@ export default function NewPatientPage() {
   }, []);
 
   function validate() {
-    const e: Record<string, string> = {};
-    if (!name.trim()) e.name = "Name is required";
-    const numAge = age === "" ? 0 : Number(age);
-    const numMonths = ageMonths === "" ? 0 : Number(ageMonths);
-    if (isNaN(numAge) || numAge < 0 || numAge > 150) e.age = "Enter a valid age in years";
-    if (isNaN(numMonths) || numMonths < 0 || numMonths > 11) e.ageMonths = "0 to 11 months";
-    if (age === "" && ageMonths === "") e.age = "Age is required (years or months)";
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Invalid email";
+    const e = validatePatientForm({ name, age, ageMonths, phone, email });
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -64,6 +58,17 @@ export default function NewPatientPage() {
     if (!validate()) return;
     setLoading(true);
     try {
+      // Same name + same phone almost always means the patient is already registered
+      const duplicate = await findDuplicatePatient({ name, phone });
+      if (
+        duplicate &&
+        !window.confirm(
+          `A patient named "${duplicate.name}" with this phone number already exists (${duplicate.patientCode}).\n\nAdd another record anyway?`,
+        )
+      ) {
+        return;
+      }
+
       // Derive refDoctor name from selected doctor
       const selectedDoctor = doctors.find((d) => d.id === doctorId);
       const refDoctor = selectedDoctor
@@ -113,7 +118,7 @@ export default function NewPatientPage() {
             <div className="col-span-2">
               <Field label="Full Name" id="name" required error={errors.name}>
                 <input
-                  id="name" type="text"
+                  id="name" type="text" maxLength={100} autoComplete="off"
                   className={`form-input ${errors.name ? "form-input-error" : ""}`}
                   value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Rajesh Kumar Sharma"
@@ -174,9 +179,9 @@ export default function NewPatientPage() {
             Contact Details
           </h2>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Phone Number" id="phone" hint="optional">
+            <Field label="Phone Number" id="phone" hint="optional" error={errors.phone}>
               <input
-                id="phone" type="tel" className="form-input"
+                id="phone" type="tel" maxLength={20} className={`form-input ${errors.phone ? "form-input-error" : ""}`}
                 value={phone} onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98765 43210"
               />
@@ -191,7 +196,7 @@ export default function NewPatientPage() {
             </Field>
             <div className="col-span-2">
               <Field label="Address" id="address" hint="optional">
-                <textarea id="address" rows={2} className="form-input resize-none"
+                <textarea id="address" rows={2} maxLength={300} className="form-input resize-none"
                   value={address} onChange={(e) => setAddress(e.target.value)}
                   placeholder="Street, City, State, PIN"
                 />

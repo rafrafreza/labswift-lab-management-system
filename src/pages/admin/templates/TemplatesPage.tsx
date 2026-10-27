@@ -3,6 +3,7 @@ import { Copy, Edit2, FlaskConical, Plus, ToggleLeft, ToggleRight } from "lucide
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
+import { ErrorState, getLoadErrorMessage } from "@/components/shared/PageState";
 import { listTemplates, updateTemplate } from "@/lib/services/templates";
 import type { TemplateWithFields } from "@/types";
 
@@ -10,11 +11,16 @@ export default function TemplatesPage() {
   const [templates, setTemplates] = useState<TemplateWithFields[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await listTemplates(false, true);
       setTemplates(data);
+    } catch (err) {
+      setLoadError(getLoadErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -82,6 +88,8 @@ export default function TemplatesPage() {
             </div>
           ))}
         </div>
+      ) : loadError ? (
+        <ErrorState title="Couldn't load templates" message={loadError} onRetry={() => void load()} />
       ) : Object.keys(grouped).length === 0 ? (
         <div className="card p-16 text-center">
           <FlaskConical className="mx-auto mb-4 h-12 w-12 text-slate-200" />

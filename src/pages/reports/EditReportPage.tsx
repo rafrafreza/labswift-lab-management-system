@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ClipboardList, IndianRupee, Save } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { listDoctors } from "@/lib/services/doctors";
 import { getReport, updateReport } from "@/lib/services/reports";
-import { listTemplates } from "@/lib/services/templates";
+import { getTemplate, listTemplates } from "@/lib/services/templates";
+import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
+import { invalidNumericResults, missingResults, summarize, validateBilling, validateCollectedAt } from "@/lib/validation";
 import { cn, formatAge, formatCurrency, isValueAbnormal } from "@/lib/utils";
 import type { Doctor, ReportWithRelations, TemplateWithFields } from "@/types";
 
@@ -34,11 +36,17 @@ export default function EditReportPage() {
   // Load the draft report + templates + doctors
   useEffect(() => {
     Promise.all([getReport(id), listTemplates(true), listDoctors(true)])
-      .then(([r, tmpl, docs]) => {
+      .then(async ([r, activeTemplates, docs]) => {
         if (r.status !== "DRAFT") {
           toast.error("Only draft reports can be edited.");
           navigate(`/reports/${id}`, { replace: true });
           return;
+        }
+        // The draft's test may have been deactivated since it was started: it must still be editable
+        let tmpl = activeTemplates;
+        if (!tmpl.some((t) => t.id === r.templateId)) {
+          const own = await getTemplate(r.templateId);
+          tmpl = [...tmpl, own];
         }
         setReport(r);
         setTemplates(tmpl);
@@ -106,20 +114,54 @@ export default function EditReportPage() {
     [selectedTemplate],
   );
 
-  async function handleSubmit(status: "DRAFT" | "FINAL") {
-    if (!report || !selectedTemplate) return;
+  // Warn before a refresh/close would throw away edits: compare against what was loaded
+  const snapshot = JSON.stringify({ values, notes, collectedAt, billAmount, discountType, discount, paymentStatus, amountPaid });
+  const initialSnapshot = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loading && initialSnapshot.current === null) initialSnapshot.current = snapshot;
+  }, [loading, snapshot]);
+  useUnsavedChangesWarning(!loading && !submitting && initialSnapshot.current !== null && snapshot !== initialSnapshot.current);
 
-    // Validate only when finalising — drafts can have empty fields
+  async function handleSubmit(status: "DRAFT" | "FINAL") {
+    if (!report) return;
+    if (!selectedTemplate) {
+      toast.error("This report's test could not be loaded. Reload the page and try again.");
+      return;
+    }
+
+    // Drafts may be saved with empty results; finalising needs every result
+    const fields = selectedTemplate.fields;
+    if (fields.length === 0) {
+      toast.error("This test has no parameters yet. Ask an administrator to add them in Templates.");
+      return;
+    }
     if (status === "FINAL") {
-      const missing = selectedTemplate.fields
-        .filter((f) => !values[f.id]?.trim())
-        .map((f) => f.fieldName);
+      const missing = missingResults(fields, values);
       if (missing.length > 0) {
-        toast.error(
-          `Fill in: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "..." : ""}`,
-        );
+        toast.error(`Fill in: ${summarize(missing)}`);
         return;
       }
+    }
+    const notNumbers = invalidNumericResults(fields, values);
+    if (notNumbers.length > 0) {
+      toast.error(`These results must be numbers: ${summarize(notNumbers)}`);
+      return;
+    }
+    const dateError = validateCollectedAt(collectedAt);
+    if (dateError) {
+      toast.error(dateError);
+      return;
+    }
+    const billingError = validateBilling({
+      billAmount: numBillAmount,
+      discountType,
+      discount: numDiscount,
+      paymentStatus,
+      amountPaid: paymentStatus === "PAID" ? netBill : amountPaid === "" ? 0 : Number(amountPaid),
+    });
+    if (billingError) {
+      toast.error(billingError);
+      return;
     }
 
     setSubmitting(true);

@@ -109,7 +109,25 @@ export default function PatientsPage() {
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     <User className="mx-auto mb-2 h-8 w-8 opacity-30" />
-                    {query ? `No patients matching "${query}"` : "No patients yet"}
+                    {query ? (
+                      <>
+                        <p>No patients matching &quot;{query}&quot;</p>
+                        <button
+                          type="button"
+                          onClick={() => setSearch("")}
+                          className="mt-2 text-xs font-medium text-teal-700 hover:underline"
+                        >
+                          Clear search
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-slate-500">No patients yet</p>
+                        <Link to="/patients/new" className="btn btn-primary btn-sm mt-3">
+                          <Plus className="h-3.5 w-3.5" /> Register first patient
+                        </Link>
+                      </>
+                    )}
                   </td>
                 </tr>
               ) : (

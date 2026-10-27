@@ -160,9 +160,27 @@ export default function ReportsPage() {
                   <td colSpan={7} className="py-16 text-center text-slate-400">
                     <FileText className="mx-auto mb-3 h-10 w-10 opacity-25" />
                     <p className="mb-1 text-sm font-medium text-slate-500">No reports found</p>
-                    <p className="text-xs">
-                      {query ? `No results for "${query}"` : "Create your first report to get started"}
-                    </p>
+                    {query || status !== "ALL" ? (
+                      <>
+                        <p className="text-xs">
+                          {query ? `No results for "${query}"` : "No reports with this status"}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setSearch(""); setStatus("ALL"); setPage(1); }}
+                          className="mt-2 text-xs font-medium text-teal-700 hover:underline"
+                        >
+                          Clear search and filters
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs">Create your first report to get started</p>
+                        <Link to="/reports/new" className="btn btn-primary btn-sm mt-3">
+                          <Plus className="h-3.5 w-3.5" /> New Report
+                        </Link>
+                      </>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -249,7 +267,7 @@ export default function ReportsPage() {
                           <Eye className="h-3.5 w-3.5" />
                         </Link>
 
-                        {/* DRAFT — edit + delete */}
+                        {/* DRAFT — edit + delete (download is shown but explains that drafts can't be downloaded) */}
                         {report.status === "DRAFT" && (
                           <>
                             <Link
@@ -259,6 +277,12 @@ export default function ReportsPage() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Link>
+                            <ReportRowDownload
+                              reportId={report.id}
+                              reportNumber={report.reportNumber}
+                              patientName={report.patient.name}
+                              status="DRAFT"
+                            />
                             <button
                               onClick={() => handleDelete(report)}
                               disabled={deletingId === report.id}
@@ -281,6 +305,7 @@ export default function ReportsPage() {
                               reportId={report.id}
                               reportNumber={report.reportNumber}
                               patientName={report.patient.name}
+                              status={report.status}
                             />
                             <Link
                               to={`/reports/${report.id}?share=1`}
