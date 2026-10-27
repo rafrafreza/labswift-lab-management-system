@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Building2, Globe, Mail, Palette, Phone, Save, Upload, User, X } from "lucide-react";
+import { Building2, FileText, Globe, Mail, Palette, Phone, Save, Upload, User, X } from "lucide-react";
 import { toast } from "sonner";
 
+import ReportDesignPicker from "@/components/settings/ReportDesignPicker";
+import { normalizeReportTemplate } from "@/lib/reportTemplates";
 import { BUCKETS, uploadFile } from "@/lib/supabase";
 import { getSettings, updateSettings } from "@/lib/services/settings";
 
@@ -12,6 +14,7 @@ type SettingsForm = {
   labEmail: string;
   labWebsite: string;
   tagline: string;
+  reportTemplate: string;
   logoUrl: string;
   signatureUrl: string;
   useSignature: boolean;
@@ -29,6 +32,7 @@ const DEFAULTS: SettingsForm = {
   labEmail: "",
   labWebsite: "",
   tagline: "",
+  reportTemplate: "modern",
   logoUrl: "",
   signatureUrl: "",
   useSignature: true,
@@ -135,6 +139,7 @@ export default function SettingsPage() {
           ...settings,
           labWebsite: settings.labWebsite || "",
           tagline: settings.tagline || "",
+          reportTemplate: normalizeReportTemplate(settings.reportTemplate),
           logoUrl: settings.logoUrl || "",
           signatureUrl: settings.signatureUrl || "",
           useSignature: settings.useSignature !== undefined ? Boolean(settings.useSignature) : Boolean(settings.signatureUrl),
@@ -199,6 +204,7 @@ export default function SettingsPage() {
         labEmail: form.labEmail,
         labWebsite: form.labWebsite || null,
         tagline: form.tagline.trim() || null,
+        reportTemplate: normalizeReportTemplate(form.reportTemplate),
         logoUrl: form.logoUrl || null,
         signatureUrl: form.signatureUrl || null,
         useSignature: form.useSignature,
@@ -306,6 +312,29 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      </Section>
+
+      <Section title="Report Design" icon={FileText}>
+        <ReportDesignPicker
+          value={form.reportTemplate}
+          onChange={(id) => update("reportTemplate", id)}
+          accent={form.accentColor || "#0f766e"}
+          pdfSettings={{
+            labName: form.labName || "Your Lab Name",
+            labAddress: form.labAddress,
+            labPhone: form.labPhone,
+            labEmail: form.labEmail,
+            labWebsite: form.labWebsite || undefined,
+            tagline: form.tagline,
+            logoUrl: form.logoUrl || undefined,
+            signatureUrl: form.signatureUrl || undefined,
+            useSignature: form.useSignature,
+            pathologistName: form.pathologistName || "Pathologist Name",
+            pathologistQual: form.pathologistQual,
+            reportFooter: form.reportFooter || undefined,
+            accentColor: form.accentColor || "#0f766e",
+          }}
+        />
       </Section>
 
       <Section title="Pathologist Details" icon={User}>
