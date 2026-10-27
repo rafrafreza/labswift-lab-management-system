@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { updateReportPayment } from "@/lib/services/reports";
 import { formatCurrency } from "@/lib/utils";
+import { validateBilling } from "@/lib/validation";
 import type { ReportWithRelations } from "@/types";
 
 type PaymentModalProps = {
@@ -109,14 +110,29 @@ export default function PaymentModal({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+
+    let finalPaid = amountPaid;
+    if (paymentStatus === "PAID") {
+      finalPaid = netBill;
+    } else if (paymentStatus === "UNPAID" || paymentStatus === "FREE") {
+      finalPaid = 0;
+    }
+
+    const billingError = validateBilling({
+      billAmount: basePrice,
+      discountType,
+      discount,
+      paymentStatus,
+      amountPaid: finalPaid,
+    });
+    if (billingError) {
+      toast.error(billingError);
+      return;
+    }
+
     setSaving(true);
     try {
-      let finalPaid = amountPaid;
-      if (paymentStatus === "PAID") {
-        finalPaid = netBill;
-      } else if (paymentStatus === "UNPAID" || paymentStatus === "FREE") {
-        finalPaid = 0;
-      }
 
       const updated = await updateReportPayment(report.id, {
         paymentStatus,

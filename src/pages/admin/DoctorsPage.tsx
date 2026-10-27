@@ -3,6 +3,8 @@ import { Pencil, Plus, Stethoscope, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { createDoctor, deleteDoctor, listDoctors, updateDoctor } from "@/lib/services/doctors";
+import { ErrorState, getLoadErrorMessage } from "@/components/shared/PageState";
+import { cleanName, isValidEmail, isValidPhone } from "@/lib/validation";
 import type { Doctor } from "@/types";
 
 type DoctorForm = {
@@ -28,9 +30,13 @@ export default function DoctorsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
+    setLoadError(null);
     try { setDoctors(await listDoctors()); }
+    catch (err) { setLoadError(getLoadErrorMessage(err)); }
     finally { setLoading(false); }
   }
 
@@ -57,14 +63,24 @@ export default function DoctorsPage() {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) { toast.error("Doctor name is required"); return; }
-    const rate = parseFloat(form.incentiveRate);
-    if (isNaN(rate) || rate < 0 || rate > 100) { toast.error("Incentive rate must be 0–100"); return; }
+    const name = cleanName(form.name.replace(/^dr\.?\s+/i, ""));
+    if (!name) { toast.error("Doctor name is required"); return; }
+    if (name.length > 100) { toast.error("Doctor name is too long (100 characters at most)"); return; }
+    if (form.phone.trim() && !isValidPhone(form.phone)) { toast.error("Enter a valid phone number (7 to 15 digits)"); return; }
+    if (form.email.trim() && !isValidEmail(form.email)) { toast.error("Enter a valid email address"); return; }
+    const rate = Math.round(parseFloat(form.incentiveRate) * 100) / 100;
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) { toast.error("Incentive rate must be between 0 and 100"); return; }
+
+    // The same doctor entered twice splits their referrals and incentives across two records
+    const duplicate = doctors.find((d) => d.id !== editing?.id && d.name.trim().toLowerCase() === name.toLowerCase());
+    if (duplicate && !window.confirm(`A doctor named "Dr. ${duplicate.name}" already exists. Add another one with the same name?`)) {
+      return;
+    }
 
     setSaving(true);
     try {
       const payload = {
-        name: form.name.trim(),
+        name,
         qualification: form.qualification.trim() || undefined,
         phone: form.phone.trim() || undefined,
         email: form.email.trim() || undefined,
@@ -138,6 +154,12 @@ export default function DoctorsPage() {
                   <td key={c}><div className="h-4 animate-pulse rounded bg-slate-100" /></td>
                 ))}</tr>
               ))
+            ) : loadError ? (
+              <tr>
+                <td colSpan={6}>
+                  <ErrorState title="Couldn't load doctors" message={loadError} onRetry={() => void load()} />
+                </td>
+              </tr>
             ) : doctors.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-16 text-center">
@@ -205,7 +227,7 @@ export default function DoctorsPage() {
             <div className="space-y-4 px-6 py-5">
               <div>
                 <label className="form-label">Full Name <span className="text-red-500">*</span></label>
-                <input type="text" className="form-input" value={form.name}
+                <input type="text" maxLength={100} className="form-input" value={form.name}
                   onChange={(e) => set("name", e.target.value)} placeholder="e.g. Anand Kumar" />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -223,12 +245,12 @@ export default function DoctorsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Phone</label>
-                  <input type="tel" className="form-input" value={form.phone}
+                  <input type="tel" maxLength={20} className="form-input" value={form.phone}
                     onChange={(e) => set("phone", e.target.value)} placeholder="+91 ..." />
                 </div>
                 <div>
                   <label className="form-label">Email</label>
-                  <input type="email" className="form-input" value={form.email}
+                  <input type="email" maxLength={254} className="form-input" value={form.email}
                     onChange={(e) => set("email", e.target.value)} />
                 </div>
               </div>

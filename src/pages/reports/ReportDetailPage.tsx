@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -15,6 +15,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner";
 
 import PaymentModal from "@/components/shared/PaymentModal";
+import { ErrorState, getLoadErrorMessage, isNotFoundError } from "@/components/shared/PageState";
 import PDFDownloadButton from "@/components/shared/PDFDownloadButton";
 import { deleteReport, getReport } from "@/lib/services/reports";
 import {
@@ -38,12 +39,20 @@ export default function ReportDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState<{ notFound: boolean; message: string } | null>(null);
+
+  const loadReport = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     getReport(id)
       .then(setReport)
-      .catch(() => navigate("/reports", { replace: true }))
+      .catch((err) => setLoadError({ notFound: isNotFoundError(err), message: getLoadErrorMessage(err) }))
       .finally(() => setLoading(false));
-  }, [id, navigate]);
+  }, [id]);
+
+  useEffect(() => {
+    loadReport();
+  }, [loadReport]);
 
   async function handleDelete() {
     if (!report) return;
@@ -70,7 +79,24 @@ export default function ReportDetailPage() {
     );
   }
 
-  if (!report) return null;
+  if (loadError || !report) {
+    return loadError?.notFound ? (
+      <ErrorState
+        title="Report not found"
+        message="This report doesn't exist or may have been deleted."
+        backTo="/reports"
+        backLabel="Back to reports"
+      />
+    ) : (
+      <ErrorState
+        title="Couldn't load this report"
+        message={loadError?.message}
+        onRetry={loadReport}
+        backTo="/reports"
+        backLabel="Back to reports"
+      />
+    );
+  }
 
   const isDraft = report.status === "DRAFT";
   const hasAbnormal = report.values.some((v) => v.isAbnormal);
@@ -121,6 +147,7 @@ export default function ReportDetailPage() {
               <Link to={`/reports/${report.id}/edit`} className="btn btn-secondary">
                 <Pencil className="h-4 w-4" /> Edit Draft
               </Link>
+              <PDFDownloadButton report={report} />
               <button
                 onClick={handleDelete}
                 disabled={deleting}

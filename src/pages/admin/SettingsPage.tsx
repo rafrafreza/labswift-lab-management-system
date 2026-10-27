@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import ReportDesignPicker from "@/components/settings/ReportDesignPicker";
 import { normalizeReportTemplate } from "@/lib/reportTemplates";
+import { isHexColor, isHttpUrl, isValidEmail, isValidPhone } from "@/lib/validation";
 import { BUCKETS, uploadFile } from "@/lib/supabase";
 import { getSettings, updateSettings } from "@/lib/services/settings";
 
@@ -106,7 +107,7 @@ const DEFAULTS: SettingsForm = {
             <>
               <Upload className="h-5 w-5" />
               <span className="text-sm font-medium">Click to upload</span>
-              <span className="text-xs">PNG, JPG or SVG · Max 2MB</span>
+              <span className="text-xs">PNG or JPG · Max 2MB</span>
             </>
           )}
         </button>
@@ -114,7 +115,7 @@ const DEFAULTS: SettingsForm = {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/png,image/jpeg"
         className="hidden"
         onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0])}
       />
@@ -158,8 +159,8 @@ export default function SettingsPage() {
   }, []);
 
   async function handleUpload(file: File, key: "logoUrl" | "signatureUrl", setUploading: (value: boolean) => void) {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file (PNG, JPG, SVG)");
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      toast.error("Please upload a PNG or JPG image. SVG and WebP files can't be used in PDF reports.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -169,7 +170,7 @@ export default function SettingsPage() {
     setUploading(true);
     try {
       const prefix = key === "logoUrl" ? "logo" : "signature";
-      const path = `${prefix}-${Date.now()}.${file.name.split(".").pop()}`;
+      const path = `${prefix}-${Date.now()}.${file.type === "image/png" ? "png" : "jpg"}`;
       const url = await uploadFile(BUCKETS.LAB_ASSETS, path, file);
       update(key, url);
       toast.success(`${key === "logoUrl" ? "Logo" : "Signature"} uploaded`);
@@ -195,6 +196,28 @@ export default function SettingsPage() {
       toast.error("Lab name is required");
       return;
     }
+    if (form.labEmail.trim() && !isValidEmail(form.labEmail)) {
+      toast.error("Enter a valid lab email address");
+      return;
+    }
+    if (form.labPhone.trim() && !isValidPhone(form.labPhone)) {
+      toast.error("Enter a valid lab phone number (7 to 15 digits)");
+      return;
+    }
+    const website = form.labWebsite.trim();
+    const websiteUrl = website && !/^https?:\/\//i.test(website) ? `https://${website}` : website;
+    if (websiteUrl && !isHttpUrl(websiteUrl)) {
+      toast.error("Enter a valid website address, for example https://yourlab.com");
+      return;
+    }
+    if (form.accentColor.trim() && !isHexColor(form.accentColor)) {
+      toast.error("Accent colour must be a hex colour such as #0f766e");
+      return;
+    }
+    if (!/^[A-Za-z0-9_-]{1,10}$/.test(form.reportNumberPrefix.trim())) {
+      toast.error("Report number prefix must be 1 to 10 letters, numbers, dashes or underscores");
+      return;
+    }
     setSaving(true);
     try {
       await updateSettings({
@@ -202,7 +225,7 @@ export default function SettingsPage() {
         labAddress: form.labAddress,
         labPhone: form.labPhone,
         labEmail: form.labEmail,
-        labWebsite: form.labWebsite || null,
+        labWebsite: websiteUrl || null,
         tagline: form.tagline.trim() || null,
         reportTemplate: normalizeReportTemplate(form.reportTemplate),
         logoUrl: form.logoUrl || null,
@@ -210,7 +233,7 @@ export default function SettingsPage() {
         useSignature: form.useSignature,
         pathologistName: form.pathologistName,
         pathologistQual: form.pathologistQual,
-        reportNumberPrefix: form.reportNumberPrefix,
+        reportNumberPrefix: form.reportNumberPrefix.trim(),
         reportFooter: form.reportFooter || null,
         accentColor: form.accentColor || "#0f766e",
       });
@@ -283,7 +306,7 @@ export default function SettingsPage() {
               <Globe className="h-3.5 w-3.5 text-slate-400" />
               Website (optional)
             </label>
-            <input type="url" className="form-input" value={form.labWebsite} onChange={(event) => update("labWebsite", event.target.value)} placeholder="https://yourlabwebsite.com" />
+            <input type="text" inputMode="url" maxLength={200} className="form-input" value={form.labWebsite} onChange={(event) => update("labWebsite", event.target.value)} placeholder="https://yourlabwebsite.com" />
           </div>
         </div>
       </Section>

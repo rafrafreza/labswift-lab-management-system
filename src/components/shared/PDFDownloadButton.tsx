@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { preloadPdfEngine, preloadPdfEngineWhenIdle } from "@/lib/preload";
+import { DRAFT_PDF_MESSAGE } from "@/lib/reportRules";
 import { getSettings } from "@/lib/services/settings";
 import type { ReportWithRelations } from "@/types";
 
@@ -13,13 +14,20 @@ type Props = { report: ReportWithRelations };
 export default function PDFDownloadButton({ report }: Props) {
   const [generating, setGenerating] = useState(false);
 
+  const isDraft = report.status === "DRAFT";
+
   useEffect(() => {
+    if (isDraft) return; // nothing will be generated, so don't download the PDF engine
     // Fetch the engine and settings in the background so the first click is fast
     preloadPdfEngineWhenIdle();
     void getSettings().catch(() => {});
   }, []);
 
   async function handleDownload() {
+    if (isDraft) {
+      toast.error(DRAFT_PDF_MESSAGE);
+      return;
+    }
     setGenerating(true);
     try {
       const [settings, { pdf }, { default: LabReportPDF }] = await Promise.all([
@@ -54,11 +62,12 @@ export default function PDFDownloadButton({ report }: Props) {
 
   return (
     <button
-      className="btn btn-primary"
+      className={`btn btn-primary ${isDraft ? "opacity-60" : ""}`}
       disabled={generating}
       onClick={handleDownload}
-      onMouseEnter={preloadPdfEngine}
-      onFocus={preloadPdfEngine}
+      onMouseEnter={isDraft ? undefined : preloadPdfEngine}
+      onFocus={isDraft ? undefined : preloadPdfEngine}
+      title={isDraft ? DRAFT_PDF_MESSAGE : undefined}
     >
       {generating ? (
         <>
