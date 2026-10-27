@@ -13,15 +13,30 @@ function originOf(url: string) {
   }
 }
 
+/**
+ * Turns whatever was typed into the APP_URL secret into a clean origin: "labswift.vercel.app",
+ * "https://labswift.vercel.app/" and "https://labswift.vercel.app/login" all become "https://labswift.vercel.app".
+ * A value without a scheme used to be sent to Supabase as-is, which produced links to a non-existent path.
+ */
+function normalizeOrigin(raw: string) {
+  const value = raw.trim().replace(/^["']|["']$/g, "");
+  if (!value) return "";
+  return originOf(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+}
+
 serve(async (request) => {
-  const configuredAppUrl = Deno.env.get("APP_URL") ?? "";
-  const appUrl = configuredAppUrl || "http://localhost:5173";
+  const rawAppUrl = Deno.env.get("APP_URL") ?? "";
+  const configuredOrigin = normalizeOrigin(rawAppUrl);
+  if (rawAppUrl.trim() && !configuredOrigin) {
+    console.error("invite-user: APP_URL is not a valid address, ignoring it:", rawAppUrl);
+  }
+  const appOrigin = configuredOrigin || "http://localhost:5173";
   // When APP_URL is set, only that origin (plus ALLOWED_ORIGINS, comma separated) may call this function from a
   // browser. When it is NOT set we cannot know which site is yours, so any origin is accepted rather than breaking
   // invites; the admin check below is the real protection (a request needs an admin's access token either way).
-  const strictOrigins = Boolean(configuredAppUrl);
+  const strictOrigins = Boolean(configuredOrigin);
   const allowedOrigins = new Set(
-    [originOf(appUrl), ...(Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((o) => o.trim())].filter(Boolean),
+    [configuredOrigin, ...(Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map(normalizeOrigin)].filter(Boolean),
   );
   const requestOrigin = request.headers.get("Origin") ?? "";
   const corsHeaders: Record<string, string> = {
@@ -116,10 +131,14 @@ serve(async (request) => {
     }
 
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { name },
-      // The invite email links back to the site the admin is using (or APP_URL when it is configured).
+      // password_set:false keeps the invitee on the "create your password" screen until they have chosen one
+      data: { name, password_set: false },
       // Supabase additionally only honours addresses on the project's Redirect URLs allow-list.
-      redirectTo: `${(!strictOrigins && originOf(requestOrigin)) || originOf(appUrl) || appUrl}/login`,
+      // Link back to the site the admin invited from when that site is allowed (so a local test opens the local app
+      // and the live site opens the live app); otherwise to APP_URL.
+      redirectTo: `${
+        strictOrigins ? (allowedOrigins.has(requestOrigin) ? requestOrigin : configuredOrigin) : originOf(requestOrigin) || appOrigin
+      }/login`,
     });
 
     if (inviteError) {

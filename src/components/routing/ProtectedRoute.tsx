@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
+import { isPasswordSetupPending } from "@/lib/passwordSetup";
 
 function LoadingScreen() {
   return (
@@ -15,7 +16,7 @@ function LoadingScreen() {
 
 export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
   const location = useLocation();
-  const { profile, loading, isAdmin } = useAuth();
+  const { user, profile, loading, isAdmin } = useAuth();
 
   if (loading) {
     return <LoadingScreen />;
@@ -28,6 +29,11 @@ export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
         replace
       />
     );
+  }
+
+  // Arrived through an invitation / reset link and has not chosen a password yet: the login page handles that
+  if (isPasswordSetupPending(user)) {
+    return <Navigate to="/login" replace />;
   }
 
   if (adminOnly && !isAdmin) {
