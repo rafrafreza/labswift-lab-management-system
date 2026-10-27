@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -45,14 +45,22 @@ export default function ReportsPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  // Only the latest request may update the screen (slow earlier responses are dropped)
+  const requestId = useRef(0);
+
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     try {
       const data = await listReports({ page, limit: PAGE_SIZE, search: query, status });
+      if (id !== requestId.current) return;
       setReports(data.reports);
       setTotal(data.total);
+    } catch (err) {
+      if (id !== requestId.current) return;
+      toast.error(err instanceof Error ? err.message : "Failed to load reports");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [page, query, status]);
 
@@ -124,7 +132,7 @@ export default function ReportsPage() {
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="data-table">
+          <table className={`data-table transition-opacity ${loading && reports.length > 0 ? "opacity-50" : ""}`}>
             <thead>
               <tr>
                 <th>Report No.</th>
@@ -137,7 +145,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && reports.length === 0 ? (
                 [...Array(7)].map((_, i) => (
                   <tr key={i}>
                     {[...Array(7)].map((_, c) => (
