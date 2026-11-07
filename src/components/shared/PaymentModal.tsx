@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, DollarSign, IndianRupee, Percent, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,117 +14,97 @@ type PaymentModalProps = {
   onSuccess: (updatedReport: ReportWithRelations) => void;
 };
 
-export default function PaymentModal({
-  isOpen,
-  onClose,
-  report,
-  onSuccess,
-}: PaymentModalProps) {
-  if (!isOpen || !report) return null;
+type Status = "PAID" | "PARTIAL" | "UNPAID" | "FREE";
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Outer shell: renders nothing while closed, and gives the form a fresh state for every report it is opened on. */
+export default function PaymentModal({ isOpen, onClose, report, onSuccess }: PaymentModalProps) {
+  if (!isOpen || !report) return null;
+  return <PaymentForm key={report.id} report={report} onClose={onClose} onSuccess={onSuccess} />;
+}
+
+function PaymentForm({
+  report,
+  onClose,
+  onSuccess,
+}: {
+  report: ReportWithRelations;
+  onClose: () => void;
+  onSuccess: (updatedReport: ReportWithRelations) => void;
+}) {
   const basePrice = report.billAmount ?? report.template.price ?? 0;
 
-  const [discountType, setDiscountType] = useState<"FLAT" | "PERCENT">(
-    report.discountType || "FLAT",
-  );
+  const [discountType, setDiscountType] = useState<"FLAT" | "PERCENT">(report.discountType || "FLAT");
   const [discount, setDiscount] = useState<number>(report.discount || 0);
-  const [paymentStatus, setPaymentStatus] = useState<"PAID" | "PARTIAL" | "UNPAID" | "FREE">(
-    report.paymentStatus || "UNPAID",
-  );
-  const [amountPaid, setAmountPaid] = useState<number>(
-    report.amountPaid != null ? report.amountPaid : 0,
+  // What the cashier picked / typed. The amounts that are saved are DERIVED from these plus the current discount
+  // (below), so changing the discount can never leave a stale "amount received" behind.
+  const [pickedStatus, setPickedStatus] = useState<Status>(report.paymentStatus || "UNPAID");
+  const [partialText, setPartialText] = useState<string>(
+    report.paymentStatus === "PARTIAL" && report.amountPaid != null ? String(report.amountPaid) : "",
   );
   const [saving, setSaving] = useState(false);
 
-  // Initialize/reset form whenever report changes
-  useEffect(() => {
-    if (report) {
-      const bPrice = report.billAmount ?? report.template.price ?? 0;
-      const dType = report.discountType || "FLAT";
-      const dVal = report.discount || 0;
-      setDiscountType(dType);
-      setDiscount(dVal);
+  // ── Derived money (single source of truth for display and save) ──
+  const discountAmount = round2(
+    Math.min(
+      basePrice,
+      discountType === "PERCENT" ? (basePrice * Math.max(0, discount)) / 100 : Math.max(0, discount),
+    ),
+  );
+  const netBill = pickedStatus === "FREE" ? 0 : round2(Math.max(0, basePrice - discountAmount));
 
-      const dAmt = dType === "PERCENT" ? (bPrice * dVal) / 100 : dVal;
-      const net = Math.max(0, bPrice - dAmt);
+  const typedPartial = round2(Math.max(0, Number(partialText) || 0));
+  const amountPaid =
+    pickedStatus === "PAID"
+      ? netBill
+      : pickedStatus === "PARTIAL"
+        ? Math.min(typedPartial, netBill)
+        : 0;
 
-      const pStatus = report.paymentStatus || "UNPAID";
-      setPaymentStatus(pStatus);
+  // A "partial" that covers the whole net bill is a full payment (e.g. 500 typed, then a 100 discount applied),
+  // and a partial of nothing is unpaid.
+  const paymentStatus: Status =
+    pickedStatus === "PARTIAL" && netBill > 0
+      ? amountPaid >= netBill
+        ? "PAID"
+        : amountPaid <= 0
+          ? "UNPAID"
+          : "PARTIAL"
+      : pickedStatus;
 
-      if (pStatus === "PAID") {
-        setAmountPaid(net);
-      } else if (pStatus === "FREE" || pStatus === "UNPAID") {
-        setAmountPaid(0);
-      } else {
-        setAmountPaid(report.amountPaid != null ? report.amountPaid : 0);
-      }
+  const balanceDue = paymentStatus === "FREE" ? 0 : round2(Math.max(0, netBill - amountPaid));
+
+  const handleSelectStatus = (status: Status) => {
+    if (status === "PARTIAL") {
+      // Start from half, unless a usable partial amount is already there
+      if (!(typedPartial > 0 && typedPartial < netBill)) setPartialText(String(round2(netBill / 2)));
     }
-  }, [report]);
-
-  // Derived calculations
-  const discountAmount =
-    discountType === "PERCENT"
-      ? (basePrice * Math.max(0, discount)) / 100
-      : Math.max(0, discount);
-
-  const netBill =
-    paymentStatus === "FREE"
-      ? 0
-      : Math.max(0, basePrice - discountAmount);
-
-  const balanceDue = Math.max(0, netBill - Math.max(0, amountPaid));
-
-  // Handler when clicking status buttons
-  const handleSelectStatus = (status: "PAID" | "PARTIAL" | "UNPAID" | "FREE") => {
-    setPaymentStatus(status);
-    if (status === "PAID") {
-      setAmountPaid(netBill);
-    } else if (status === "UNPAID") {
-      setAmountPaid(0);
-    } else if (status === "FREE") {
-      setAmountPaid(0);
-    } else if (status === "PARTIAL") {
-      if (amountPaid <= 0 || amountPaid >= netBill) {
-        setAmountPaid(Math.round(netBill / 2));
-      }
-    }
+    setPickedStatus(status);
   };
 
-  // Handler for amount paid change
-  const handleAmountPaidChange = (val: number) => {
-    const clamped = Math.max(0, val);
-    setAmountPaid(clamped);
+  const handleAmountPaidChange = (text: string) => {
+    if (pickedStatus === "FREE") return;
+    setPartialText(text);
+    setPickedStatus("PARTIAL"); // `paymentStatus` above turns this into PAID / UNPAID when the amount calls for it
+  };
 
-    if (paymentStatus === "FREE") {
-      return;
-    }
-
-    if (clamped >= netBill && netBill > 0) {
-      setPaymentStatus("PAID");
-    } else if (clamped > 0 && clamped < netBill) {
-      setPaymentStatus("PARTIAL");
-    } else if (clamped === 0) {
-      setPaymentStatus("UNPAID");
-    }
+  const handleDiscountChange = (raw: number) => {
+    const limit = discountType === "PERCENT" ? 100 : basePrice;
+    setDiscount(Math.min(Math.max(0, raw), limit));
+    if (pickedStatus === "FREE") setPickedStatus("UNPAID"); // editing the discount means it's no longer a free test
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
 
-    let finalPaid = amountPaid;
-    if (paymentStatus === "PAID") {
-      finalPaid = netBill;
-    } else if (paymentStatus === "UNPAID" || paymentStatus === "FREE") {
-      finalPaid = 0;
-    }
-
     const billingError = validateBilling({
       billAmount: basePrice,
       discountType,
       discount,
       paymentStatus,
-      amountPaid: finalPaid,
+      amountPaid,
     });
     if (billingError) {
       toast.error(billingError);
@@ -133,25 +113,20 @@ export default function PaymentModal({
 
     setSaving(true);
     try {
-
       const updated = await updateReportPayment(report.id, {
         paymentStatus,
-        amountPaid: finalPaid,
+        amountPaid,
         discount,
         discountType,
         billAmount: basePrice,
       });
 
-      toast.success(
-        `Payment updated: ${paymentStatus} (${formatCurrency(finalPaid)})`,
-      );
+      toast.success(`Payment updated: ${paymentStatus} (${formatCurrency(amountPaid)})`);
       onSuccess(updated);
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update payment",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to update payment");
     } finally {
       setSaving(false);
     }
@@ -204,7 +179,10 @@ export default function PaymentModal({
               <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
                 <button
                   type="button"
-                  onClick={() => setDiscountType("FLAT")}
+                  onClick={() => {
+                    setDiscountType("FLAT");
+                    setDiscount((d) => Math.min(d, basePrice));
+                  }}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
                     discountType === "FLAT"
                       ? "bg-white text-teal-800 shadow-xs"
@@ -215,7 +193,10 @@ export default function PaymentModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDiscountType("PERCENT")}
+                  onClick={() => {
+                    setDiscountType("PERCENT");
+                    setDiscount((d) => Math.min(d, 100));
+                  }}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
                     discountType === "PERCENT"
                       ? "bg-white text-teal-800 shadow-xs"
@@ -233,7 +214,7 @@ export default function PaymentModal({
                   max={discountType === "PERCENT" ? "100" : basePrice}
                   step={discountType === "PERCENT" ? "1" : "10"}
                   value={discount === 0 ? "" : discount}
-                  onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+                  onChange={(e) => handleDiscountChange(Number(e.target.value) || 0)}
                   placeholder="0"
                   className="input pr-8 text-right font-medium"
                 />
@@ -259,10 +240,8 @@ export default function PaymentModal({
                   onClick={() => {
                     setDiscountType(preset.type);
                     setDiscount(preset.val);
-                    if (preset.val === 100) {
-                      setPaymentStatus("FREE");
-                      setAmountPaid(0);
-                    }
+                    if (preset.val === 100) setPickedStatus("FREE");
+                    else if (pickedStatus === "FREE") setPickedStatus("UNPAID");
                   }}
                   className="rounded bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition-colors cursor-pointer"
                 >
@@ -339,7 +318,7 @@ export default function PaymentModal({
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Amount Collected (₹)
               </label>
-              {paymentStatus === "PARTIAL" && (
+              {(paymentStatus === "PARTIAL" || paymentStatus === "UNPAID") && balanceDue > 0 && (
                 <span className="text-xs font-semibold text-rose-600">
                   Balance Due: {formatCurrency(balanceDue)}
                 </span>
@@ -354,8 +333,9 @@ export default function PaymentModal({
                 type="number"
                 min="0"
                 max={netBill > 0 ? netBill : undefined}
-                value={amountPaid === 0 ? "0" : amountPaid}
-                onChange={(e) => handleAmountPaidChange(Number(e.target.value) || 0)}
+                step="any"
+                value={pickedStatus === "PARTIAL" ? partialText : String(amountPaid)}
+                onChange={(e) => handleAmountPaidChange(e.target.value)}
                 disabled={paymentStatus === "FREE"}
                 className={`input pl-8 font-mono font-bold text-slate-800 ${
                   paymentStatus === "FREE" ? "bg-slate-100 text-slate-400 cursor-not-allowed" : ""
@@ -367,21 +347,21 @@ export default function PaymentModal({
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => handleAmountPaidChange(netBill)}
+                  onClick={() => setPickedStatus("PAID")}
                   className="rounded bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
                 >
                   Full ({formatCurrency(netBill)})
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleAmountPaidChange(Math.round(netBill / 2))}
+                  onClick={() => handleSelectStatus("PARTIAL")}
                   className="rounded bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
                 >
-                  50% ({formatCurrency(Math.round(netBill / 2))})
+                  Half ({formatCurrency(round2(netBill / 2))})
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleAmountPaidChange(0)}
+                  onClick={() => setPickedStatus("UNPAID")}
                   className="rounded bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
                 >
                   Zero (₹0)

@@ -49,6 +49,7 @@ export function getSampleReport(): ReportWithRelations {
     status: "FINAL",
     collectedAt: collected.toISOString(),
     reportedAt: now.toISOString(),
+    publicToken: "sample-preview-0000000000000000000000000000",
     notes: "Microcytic hypochromic picture. Iron studies advised. This is a sample report for design preview only.",
     createdAt: collected.toISOString(),
     updatedAt: now.toISOString(),

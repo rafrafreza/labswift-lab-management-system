@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { mapPatient, mapPatientWithReports } from "@/lib/services/helpers";
-import { cleanName } from "@/lib/validation";
+import { cleanName, searchTerm } from "@/lib/validation";
 import type { CreatePatientInput } from "@/types";
 
 export async function listPatients(params: { page: number; limit: number; search?: string }) {
@@ -11,8 +11,8 @@ export async function listPatients(params: { page: number; limit: number; search
     .order("createdAt", { ascending: false });
 
   if (search.trim()) {
-    const term = search.trim();
-    query = query.or(
+    const term = searchTerm(search);
+    if (term) query = query.or(
       `name.ilike.%${term}%,phone.ilike.%${term}%,patientCode.ilike.%${term}%,refDoctor.ilike.%${term}%`,
     );
   }

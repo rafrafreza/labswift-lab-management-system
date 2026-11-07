@@ -333,7 +333,12 @@ export function computeFinancials(
 // ── CSV export ────────────────────────────────────────────────────────────────
 
 export function financialsToCsv(lines: FinLine[]): string {
-  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  // A text cell starting with = + - @ is run as a formula by Excel / Sheets, so patient names etc. are prefixed with '
+  const esc = (v: string | number) => {
+    let text = String(v);
+    if (typeof v === "string" && /^[=+@-]/.test(text.replace(/^\s+/, ""))) text = "'" + text;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
   const head = [
     "Report No", "Date", "Patient", "Test", "Category", "Referred By", "Payment Status",
     "Gross", "Discount", "Waived", "Net Bill", "Collected", "Due", "Commission", "Commission Paid",
