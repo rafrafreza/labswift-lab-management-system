@@ -36,29 +36,28 @@ export async function updateSettings(payload: Record<string, unknown>) {
   }
 }
 
-async function writeSettings(payload: Record<string, unknown>) {
-  let { data, error } = await supabase
-    .from("lab_settings")
-    .upsert({ id: "singleton", ...payload }, { onConflict: "id" })
-    .select("*")
-    .single();
+// Columns added by later migrations. If one is missing (migration not run yet, or PostgREST's schema cache is stale)
+// the save is retried without it so the rest of the settings still persist.
+const OPTIONAL_COLUMNS = ["useSignature", "showQrCode"] as const;
 
-  if (error && (error.message?.includes("useSignature") || error.details?.includes("useSignature"))) {
-    const fallbackPayload = { ...payload };
-    delete fallbackPayload.useSignature;
-    const retry = await supabase
-      .from("lab_settings")
-      .upsert({ id: "singleton", ...fallbackPayload }, { onConflict: "id" })
-      .select("*")
-      .single();
-    if (retry.error) throw new Error(retry.error.message);
-    return mapSettings({
-      ...retry.data,
-      useSignature: payload.useSignature,
-    });
-  }
+async function writeSettings(payload: Record<string, unknown>) {
+  const attempt = (body: Record<string, unknown>) =>
+    supabase.from("lab_settings").upsert({ id: "singleton", ...body }, { onConflict: "id" }).select("*").single();
+
+  const { data, error } = await attempt(payload);
 
   if (error) {
+    const text = `${error.message ?? ""} ${error.details ?? ""}`;
+    const missing = OPTIONAL_COLUMNS.filter((col) => text.includes(col));
+    if (missing.length) {
+      const fallback = { ...payload };
+      for (const col of missing) delete fallback[col];
+      const retry = await attempt(fallback);
+      if (retry.error) throw new Error(retry.error.message);
+      const kept: Record<string, unknown> = {};
+      for (const col of missing) kept[col] = payload[col];
+      return mapSettings({ ...retry.data, ...kept });
+    }
     throw new Error(error.message);
   }
 

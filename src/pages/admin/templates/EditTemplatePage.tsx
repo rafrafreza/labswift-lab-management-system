@@ -13,6 +13,9 @@ export default function EditTemplatePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // A different template (or a fresh visit): drop the old one so its data can never show in the new form.
+    setTemplate(null);
+    setLoading(true);
     getTemplate(id)
       .then(setTemplate)
       .catch(() => navigate("/admin/templates", { replace: true }))
@@ -44,7 +47,7 @@ export default function EditTemplatePage() {
           </p>
         </div>
       </div>
-      <TemplateForm mode="edit" initial={template} />
+      <TemplateForm key={template.id} mode="edit" initial={template} />
     </div>
   );
 }

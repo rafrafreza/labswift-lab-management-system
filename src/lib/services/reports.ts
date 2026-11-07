@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { mapReport, requireUserId } from "@/lib/services/helpers";
 import { createOrUpdateIncentive } from "@/lib/services/doctors";
 import { isValueAbnormalGender } from "@/lib/utils";
+import { searchTerm } from "@/lib/validation";
 import type { CreateReportInput, TemplateField } from "@/types";
 
 const REPORT_SELECT = `
@@ -63,7 +64,7 @@ export async function listReports(params: {
   }
 
   // Strip characters that have meaning in PostgREST filter strings
-  const term = search.replace(/[,()%*\\]/g, " ").replace(/\s+/g, " ").trim();
+  const term = searchTerm(search);
   if (term) {
     const [patientRes, templateRes] = await Promise.all([
       supabase
@@ -172,103 +173,72 @@ async function tryCreateIncentive(
   }
 }
 
+/** Value rows for the save functions: abnormal flags are worked out here, with the patient's gender. */
+function valueRows(
+  values: Array<{ fieldId: string; value: string }>,
+  templateFields: TemplateField[] | null,
+  gender: string,
+) {
+  const fieldMap = new Map((templateFields ?? []).map((f) => [f.id, f]));
+  return values.map((v) => {
+    const field = fieldMap.get(v.fieldId);
+    return {
+      fieldId: v.fieldId,
+      value: String(v.value),
+      isAbnormal: field ? isValueAbnormalGender(v.value, field, gender) : false,
+    };
+  });
+}
+
+function netBillOf(billAmount?: number | null, discountType?: string, discount?: number | null): number | null {
+  if (billAmount == null) return null;
+  const discountAmt =
+    discountType === "PERCENT" ? (Number(billAmount) * Number(discount ?? 0)) / 100 : Number(discount ?? 0);
+  return Math.max(0, Number(billAmount) - discountAmt);
+}
+
+// The report row and its values are saved by ONE database function (21.sql) = one transaction, so a failure can never
+// leave an empty report behind or wipe an edited report's results.
 export async function createReport(input: CreateReportInput) {
-  const userId = await requireUserId();
+  await requireUserId();
 
   const { data: templateFields, error: fieldsError } = await supabase
     .from("template_fields")
     .select("*")
     .eq("templateId", input.templateId)
     .order("sortOrder");
-
   if (fieldsError) throw new Error(fieldsError.message);
 
-  const { data: patientRow } = await supabase
-    .from("patients")
-    .select("gender")
-    .eq("id", input.patientId)
-    .single();
-
+  const { data: patientRow } = await supabase.from("patients").select("gender").eq("id", input.patientId).single();
   const gender: string = patientRow?.gender ?? "OTHER";
 
-  const { data: rn, error: rnError } = await supabase.rpc("next_report_number");
-  if (rnError) throw new Error(rnError.message);
+  const status = input.status ?? "FINAL";
+  const isFinal = status !== "DRAFT";
+  const netBillAmount = netBillOf(input.billAmount, input.discountType, input.discount);
 
-  const isFinal = (input.status ?? "FINAL") !== "DRAFT";
-
-  // Calculate net bill amount after discount
-  let netBillAmount: number | null = null;
-  if (input.billAmount != null) {
-    const discountAmt = input.discountType === "PERCENT"
-      ? (Number(input.billAmount) * Number(input.discount ?? 0)) / 100
-      : Number(input.discount ?? 0);
-    netBillAmount = Math.max(0, Number(input.billAmount) - discountAmt);
-  }
-
-  const payload: Record<string, any> = {
-    reportNumber: rn,
-    patientId: input.patientId,
-    templateId: input.templateId,
-    createdById: userId,
-    status: input.status ?? "FINAL",
-    collectedAt: input.collectedAt
-      ? new Date(input.collectedAt).toISOString()
-      : new Date().toISOString(),
-    reportedAt: isFinal ? new Date().toISOString() : null,
-    notes: input.notes?.trim() || null,
-    billAmount: input.billAmount != null ? Number(input.billAmount) : null,
-    discountType: input.discountType ?? "FLAT",
-    discount: input.discount != null ? Number(input.discount) : 0,
-    amountPaid: input.amountPaid != null
-      ? Number(input.amountPaid)
-      : (input.paymentStatus === "PAID" ? netBillAmount : 0),
-    paymentStatus: input.paymentStatus ?? "UNPAID",
-  };
-
-  let { data: report, error } = await supabase
-    .from("reports")
-    .insert(payload)
-    .select("id")
-    .single();
-
-  if (error && (error.message?.includes("billAmount") || error.details?.includes("billAmount"))) {
-    // Retry without billing columns in case schema hasn't reloaded yet
-    delete payload.billAmount;
-    delete payload.discountType;
-    delete payload.discount;
-    delete payload.amountPaid;
-    delete payload.paymentStatus;
-    const retry = await supabase.from("reports").insert(payload).select("id").single();
-    report = retry.data;
-    error = retry.error;
-  }
-
-  if (error || !report) throw new Error(error?.message || "Failed to create report");
-
-  const fieldMap = new Map((templateFields ?? []).map((f: any) => [f.id, f]));
-
-  const { error: valuesError } = await supabase.from("report_values").insert(
-    input.values.map((v) => {
-      const field = fieldMap.get(v.fieldId) as TemplateField | undefined;
-
-      return {
-        reportId: report.id,
-        fieldId: v.fieldId,
-        value: String(v.value),
-        isAbnormal: field
-          ? isValueAbnormalGender(v.value, field, gender)
-          : false,
-      };
-    }),
-  );
-
-  if (valuesError) throw new Error(valuesError.message);
+  const { data: reportId, error } = await supabase.rpc("create_report_atomic", {
+    p_report: {
+      patientId: input.patientId,
+      templateId: input.templateId,
+      status,
+      collectedAt: input.collectedAt ? new Date(input.collectedAt).toISOString() : new Date().toISOString(),
+      notes: input.notes?.trim() || null,
+      billAmount: input.billAmount != null ? Number(input.billAmount) : null,
+      discountType: input.discountType ?? "FLAT",
+      discount: input.discount != null ? Number(input.discount) : 0,
+      amountPaid:
+        input.amountPaid != null ? Number(input.amountPaid) : input.paymentStatus === "PAID" ? netBillAmount : 0,
+      paymentStatus: input.paymentStatus ?? "UNPAID",
+    },
+    p_values: valueRows(input.values, templateFields as TemplateField[] | null, gender),
+  });
+  if (error || !reportId) throw new Error(error?.message || "Failed to create report");
 
   if (isFinal) {
-    await tryCreateIncentive(report.id, input.patientId, input.templateId, netBillAmount);
+    await tryCreateIncentive(reportId, input.patientId, input.templateId, netBillAmount);
   }
 
-  return getReport(report.id);
+  return getReport(reportId);
 }
 
 export async function updateReport(
@@ -290,96 +260,38 @@ export async function updateReport(
     .select("patientId, templateId")
     .eq("id", id)
     .single();
-
   if (reportFetchError || !reportRow) {
     throw new Error("Report not found");
   }
 
-  const { data: patientRow } = await supabase
-    .from("patients")
-    .select("gender")
-    .eq("id", reportRow.patientId)
-    .single();
-
-  const { data: templateFields } = await supabase
-    .from("template_fields")
-    .select("*")
-    .eq("templateId", reportRow.templateId);
+  const { data: patientRow } = await supabase.from("patients").select("gender").eq("id", reportRow.patientId).single();
+  const { data: templateFields } = await supabase.from("template_fields").select("*").eq("templateId", reportRow.templateId);
 
   const gender: string = patientRow?.gender ?? "OTHER";
   const isFinal = input.status !== "DRAFT";
+  const netBillAmount = netBillOf(input.billAmount, input.discountType, input.discount);
 
-  // Calculate net bill amount after discount
-  let netBillAmount: number | null = null;
-  if (input.billAmount != null) {
-    const discountAmt = input.discountType === "PERCENT"
-      ? (Number(input.billAmount) * Number(input.discount ?? 0)) / 100
-      : Number(input.discount ?? 0);
-    netBillAmount = Math.max(0, Number(input.billAmount) - discountAmt);
-  }
-
-  const updatePayload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     status: input.status,
     collectedAt: new Date(input.collectedAt).toISOString(),
-    reportedAt: isFinal ? new Date().toISOString() : null,
     notes: input.notes?.trim() || null,
   };
-
   if (input.billAmount !== undefined) {
-    updatePayload.billAmount = input.billAmount != null ? Number(input.billAmount) : null;
-    updatePayload.discountType = input.discountType ?? "FLAT";
-    updatePayload.discount = input.discount != null ? Number(input.discount) : 0;
-    updatePayload.amountPaid = input.amountPaid != null
-      ? Number(input.amountPaid)
-      : (input.paymentStatus === "PAID" ? netBillAmount : 0);
-    updatePayload.paymentStatus = input.paymentStatus ?? "PAID";
+    // (the function only touches the billing columns when "billAmount" is present)
+    payload.billAmount = input.billAmount != null ? Number(input.billAmount) : null;
+    payload.discountType = input.discountType ?? "FLAT";
+    payload.discount = input.discount != null ? Number(input.discount) : 0;
+    payload.amountPaid =
+      input.amountPaid != null ? Number(input.amountPaid) : input.paymentStatus === "PAID" ? netBillAmount : 0;
+    payload.paymentStatus = input.paymentStatus ?? "PAID";
   }
 
-  // Rewrite the values first, while the report is still a draft: once it is FINAL the database locks its values
-  // for non-admins (see 18.sql), so the status change must be the last write.
-  const { error: deleteError } = await supabase
-    .from("report_values")
-    .delete()
-    .eq("reportId", id);
-
-  if (deleteError) throw new Error(deleteError.message);
-
-  const fieldMap = new Map((templateFields ?? []).map((f: any) => [f.id, f]));
-
-  const { error: insertError } = await supabase.from("report_values").insert(
-    input.values.map((v) => {
-      const field = fieldMap.get(v.fieldId) as TemplateField | undefined;
-
-      return {
-        reportId: id,
-        fieldId: v.fieldId,
-        value: String(v.value),
-        isAbnormal: field
-          ? isValueAbnormalGender(v.value, field, gender)
-          : false,
-      };
-    }),
-  );
-
-  if (insertError) throw new Error(insertError.message);
-
-  let { error: reportError } = await supabase
-    .from("reports")
-    .update(updatePayload)
-    .eq("id", id);
-
-  if (reportError && (reportError.message?.includes("billAmount") || reportError.details?.includes("billAmount"))) {
-    // Retry without billing columns in case schema hasn't reloaded yet
-    delete updatePayload.billAmount;
-    delete updatePayload.discountType;
-    delete updatePayload.discount;
-    delete updatePayload.amountPaid;
-    delete updatePayload.paymentStatus;
-    const retry = await supabase.from("reports").update(updatePayload).eq("id", id);
-    reportError = retry.error;
-  }
-
-  if (reportError) throw new Error(reportError.message);
+  const { error } = await supabase.rpc("update_report_atomic", {
+    p_report_id: id,
+    p_report: payload,
+    p_values: valueRows(input.values, templateFields as TemplateField[] | null, gender),
+  });
+  if (error) throw new Error(error.message);
 
   if (isFinal) {
     await tryCreateIncentive(id, reportRow.patientId, reportRow.templateId, netBillAmount);

@@ -139,6 +139,8 @@ export type ReportWithRelations = {
   reportedAt: string | null;
   notes: string | null;
   pdfUrl?: string | null;
+  /** Unguessable id used in the report QR code link (/r/<token>). */
+  publicToken?: string | null;
   billAmount?: number | null;
   discountType?: DiscountType | null;
   discount?: number | null;
@@ -191,6 +193,8 @@ export type LabSettings = {
   logoUrl: string | null;
   signatureUrl: string | null;
   useSignature?: boolean;
+  /** Print a QR code on PDF reports that opens the report PDF without logging in. */
+  showQrCode?: boolean;
   pathologistName: string;
   pathologistQual: string;
   reportNumberPrefix: string;
