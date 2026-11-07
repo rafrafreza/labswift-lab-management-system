@@ -55,10 +55,11 @@ function emptyField(): FieldDraft {
 export default function TemplateForm({ mode, initial }: Props) {
   const navigate = useNavigate();
 
-  // ✅ Unique key per template (new vs edit) so drafts don't mix
-  const DRAFT_KEY = initial?.id && mode === "edit" ? `template-draft-${initial.id}` : `template-draft-new`;
+  // One draft slot per form: editing template X, duplicating template X and creating a blank template never share one.
+  const DRAFT_KEY = `template-draft-${mode}-${initial?.id ?? "blank"}`;
 
-  // ✅ All state reads from sessionStorage first, falls back to initial/empty
+  // State starts from the saved draft if there is one (it survives a page refresh), else from the template/empty form.
+  // The draft is dropped when this form is left (Cancel, back arrow, menu, save), see the unmount effect below.
   const [name, setName] = useState(() => {
     const draft = sessionStorage.getItem(DRAFT_KEY);
     if (draft) return JSON.parse(draft).name;
@@ -113,10 +114,26 @@ export default function TemplateForm({ mode, initial }: Props) {
 
   const [saving, setSaving] = useState(false);
 
-  // ✅ Auto-save draft to sessionStorage on every change
+  // Keep the draft up to date so an accidental refresh doesn't lose the work.
   useEffect(() => {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ name, category, desc, price, isActive, fields }));
-  }, [name, category, desc, price, isActive, fields]);
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ name, category, desc, price, isActive, fields }));
+    } catch {
+      /* storage full or blocked: the form still works, it just can't be restored after a refresh */
+    }
+  }, [DRAFT_KEY, name, category, desc, price, isActive, fields]);
+
+  // Leaving the form by any route (Cancel, back arrow, sidebar link, save) discards the draft, so the next
+  // edit/duplicate/new form always starts clean. A refresh doesn't run this, so refresh-recovery still works.
+  useEffect(() => {
+    return () => {
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [DRAFT_KEY]);
 
   function addField() {
     setFields((prev) => [...prev, emptyField()]);
@@ -227,8 +244,6 @@ export default function TemplateForm({ mode, initial }: Props) {
         toast.success("Template updated");
       }
 
-      // ✅ Clear draft after successful save
-      sessionStorage.removeItem(DRAFT_KEY);
       navigate("/admin/templates");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save template");

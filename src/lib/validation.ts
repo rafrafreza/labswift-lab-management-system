@@ -33,6 +33,11 @@ export function cleanName(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+/** Search text made safe to embed in a PostgREST filter string (commas, parentheses etc. would change the filter itself). */
+export function searchTerm(value: string) {
+  return value.replace(/[,()%*\_:"']/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export const isFiniteNumber = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 // ── Billing ─────────────────────────────────────────────────────────────────────────────

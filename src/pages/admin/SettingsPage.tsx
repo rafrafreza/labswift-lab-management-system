@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Building2, FileText, Globe, Mail, Palette, Phone, Save, Upload, User, X } from "lucide-react";
+import { Building2, FileText, Globe, Mail, Palette, Phone, QrCode, Save, Upload, User, X } from "lucide-react";
 import { toast } from "sonner";
 
 import ReportDesignPicker from "@/components/settings/ReportDesignPicker";
+import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
+import { normalizeImageForPdf } from "@/lib/image";
 import { normalizeReportTemplate } from "@/lib/reportTemplates";
 import { isHexColor, isHttpUrl, isValidEmail, isValidPhone } from "@/lib/validation";
 import { BUCKETS, uploadFile } from "@/lib/supabase";
@@ -19,6 +21,7 @@ type SettingsForm = {
   logoUrl: string;
   signatureUrl: string;
   useSignature: boolean;
+  showQrCode: boolean;
   pathologistName: string;
   pathologistQual: string;
   reportNumberPrefix: string;
@@ -37,6 +40,7 @@ const DEFAULTS: SettingsForm = {
   logoUrl: "",
   signatureUrl: "",
   useSignature: true,
+  showQrCode: false,
   pathologistName: "",
   pathologistQual: "",
   reportNumberPrefix: "LAB-",
@@ -127,6 +131,8 @@ export default function SettingsPage() {
   const [form, setForm] = useState<SettingsForm>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Snapshot of what is stored, to tell the user when the form holds changes (uploads included) that aren't saved yet
+  const [savedSnapshot, setSavedSnapshot] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingSig, setUploadingSig] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -134,8 +140,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     getSettings()
-      .then((settings) =>
-        setForm({
+      .then((settings) => {
+        const loaded: SettingsForm = {
           ...DEFAULTS,
           ...settings,
           labWebsite: settings.labWebsite || "",
@@ -144,11 +150,18 @@ export default function SettingsPage() {
           logoUrl: settings.logoUrl || "",
           signatureUrl: settings.signatureUrl || "",
           useSignature: settings.useSignature !== undefined ? Boolean(settings.useSignature) : Boolean(settings.signatureUrl),
+          showQrCode: Boolean(settings.showQrCode),
           reportFooter: settings.reportFooter || "",
-        })
-      )
+        };
+        setForm(loaded);
+        setSavedSnapshot(JSON.stringify(loaded));
+      })
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Couldn't load settings"))
       .finally(() => setLoading(false));
   }, []);
+
+  const dirty = !loading && JSON.stringify(form) !== savedSnapshot;
+  useUnsavedChangesWarning(dirty);
 
   // ✅ FIX: memoized + prevent unnecessary re-renders
   const update = useCallback((key: keyof SettingsForm, value: string) => {
@@ -170,10 +183,12 @@ export default function SettingsPage() {
     setUploading(true);
     try {
       const prefix = key === "logoUrl" ? "logo" : "signature";
-      const path = `${prefix}-${Date.now()}.${file.type === "image/png" ? "png" : "jpg"}`;
-      const url = await uploadFile(BUCKETS.LAB_ASSETS, path, file);
+      // Re-encode to a plain PNG/JPG the PDF engine is guaranteed to read (see lib/image.ts)
+      const clean = await normalizeImageForPdf(file, key === "logoUrl" ? 600 : 800);
+      const path = `${prefix}-${Date.now()}.${clean.type === "image/png" ? "png" : "jpg"}`;
+      const url = await uploadFile(BUCKETS.LAB_ASSETS, path, clean);
       update(key, url);
-      toast.success(`${key === "logoUrl" ? "Logo" : "Signature"} uploaded`);
+      toast.success(`${key === "logoUrl" ? "Logo" : "Signature"} uploaded. Click "Save Settings" to use it on reports.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -231,12 +246,14 @@ export default function SettingsPage() {
         logoUrl: form.logoUrl || null,
         signatureUrl: form.signatureUrl || null,
         useSignature: form.useSignature,
+        showQrCode: form.showQrCode,
         pathologistName: form.pathologistName,
         pathologistQual: form.pathologistQual,
         reportNumberPrefix: form.reportNumberPrefix.trim(),
         reportFooter: form.reportFooter || null,
         accentColor: form.accentColor || "#0f766e",
       });
+      setSavedSnapshot(JSON.stringify(form));
       toast.success("Settings saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save settings");
@@ -352,6 +369,7 @@ export default function SettingsPage() {
             logoUrl: form.logoUrl || undefined,
             signatureUrl: form.signatureUrl || undefined,
             useSignature: form.useSignature,
+            showQrCode: form.showQrCode,
             pathologistName: form.pathologistName || "Pathologist Name",
             pathologistQual: form.pathologistQual,
             reportFooter: form.reportFooter || undefined,
@@ -407,6 +425,26 @@ export default function SettingsPage() {
         </div>
       </Section>
 
+      <Section title="QR Code on Reports" icon={QrCode}>
+        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+          <input
+            type="checkbox"
+            id="showQrCode"
+            checked={form.showQrCode}
+            onChange={(event) => setForm((curr) => ({ ...curr, showQrCode: event.target.checked }))}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+          />
+          <label htmlFor="showQrCode" className="cursor-pointer select-none">
+            <span className="block text-sm font-semibold text-slate-800">Print a QR code on PDF lab reports</span>
+            <span className="block text-xs text-slate-500 mt-0.5">
+              When checked, a QR code is printed next to the signature. Scanning it opens a page where anyone holding
+              the printed report can view and download the PDF, with no login. Only finalised reports can be opened, and
+              each report has its own long random link. Uncheck to leave the QR code off.
+            </span>
+          </label>
+        </div>
+      </Section>
+
       <Section title="Report Configuration" icon={Building2}>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -423,7 +461,12 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {dirty && (
+          <span className="text-xs font-medium text-amber-600">
+            Unsaved changes: uploaded images and options are used on reports only after you save.
+          </span>
+        )}
         <button type="submit" disabled={saving} className="btn btn-primary">
           {saving ? (
             <>

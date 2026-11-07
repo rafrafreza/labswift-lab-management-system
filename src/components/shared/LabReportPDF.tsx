@@ -1,9 +1,11 @@
 // src/components/shared/LabReportPDF.tsx
 
-import { Document, Font, Image, Page, StyleSheet, Text, View, Svg, Polygon } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, Path, Rect, StyleSheet, Text, View, Svg, Polygon } from "@react-pdf/renderer";
 import { format } from "date-fns";
+import QRCode from "qrcode";
 
 import { normalizeReportTemplate, type ReportTemplateId } from "@/lib/reportTemplates";
+import { publicReportUrl } from "@/lib/publicReportUrl";
 import { formatAge, GENDER_LABELS, getRangeText } from "@/lib/utils";
 import type { ReportWithRelations } from "@/types";
 
@@ -26,6 +28,7 @@ type SettingsProps = {
     logoUrl?: string;
     signatureUrl?: string;
     useSignature?: boolean;
+    showQrCode?: boolean;
     pathologistName: string;
     pathologistQual: string;
     reportFooter?: string;
@@ -43,6 +46,29 @@ const FOOTER_H = 40;
 const SIG_H = 65;
 const GAP = 10;
 const BOTTOM_RESERVED = FOOTER_H + SIG_H + GAP + 15;
+
+/** The QR code is drawn as vector paths (sync, crisp at any print size, no image to load). */
+function QrCode({ value, size }: { value: string; size: number }) {
+    const quiet = 2; // modules of white border, needed by scanners
+    const qr = QRCode.create(value, { errorCorrectionLevel: "M" });
+    const n = qr.modules.size;
+    const bits = qr.modules.data;
+    let d = "";
+    for (let row = 0; row < n; row++) {
+        for (let col = 0; col < n; col++) {
+            if (bits[row * n + col]) d += `M${col} ${row}h1v1h-1z`;
+        }
+    }
+    const span = n + quiet * 2;
+    return (
+        <Svg width={size} height={size} viewBox={`${-quiet} ${-quiet} ${span} ${span}`}>
+            <Rect x={-quiet} y={-quiet} width={span} height={span} fill="#ffffff" />
+            <Path d={d} fill="#000000" />
+        </Svg>
+    );
+}
+
+const SIGNATURE_BOX = { width: 120, height: 36 };
 
 function ReportPageContent({
     report,
@@ -330,7 +356,11 @@ function ReportPageContent({
                 <View style={S.sigBox}>
                     {settings.useSignature !== false && settings.signatureUrl ? (
                         <View style={{ height: 38, justifyContent: "flex-end", marginBottom: 3 }}>
-                            <Image src={settings.signatureUrl} style={{ height: 36, objectFit: "contain", alignSelf: "flex-start" }} />
+                            {/* Explicit width AND height: with only a height react-pdf can collapse the image to nothing */}
+                            <Image
+                                src={settings.signatureUrl}
+                                style={{ ...SIGNATURE_BOX, objectFit: "contain", objectPositionX: 0, objectPositionY: "100%" }}
+                            />
                         </View>
                     ) : (
                         <View style={{ height: 38 }} />
@@ -340,6 +370,12 @@ function ReportPageContent({
                         <Text style={S.sigQual}>{settings.pathologistQual}</Text>
                     </View>
                 </View>
+
+                {settings.showQrCode && report.publicToken ? (
+                    <View style={{ alignItems: "center", width: 70 }}>
+                        <QrCode value={publicReportUrl(report.publicToken)} size={52} />
+                    </View>
+                ) : null}
 
                 <View style={S.sigBoxRight}>
                     <View style={{ height: 38 }} />

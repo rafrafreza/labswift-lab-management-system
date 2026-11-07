@@ -16,6 +16,7 @@ const UsersPage         = lazy(() => import("@/pages/admin/UsersPage"));
 const LoginPage         = lazy(() => import("@/pages/LoginPage"));
 const NotFoundPage      = lazy(() => import("@/pages/NotFoundPage"));
 const DashboardPage     = lazy(() => import("@/pages/DashboardPage"));
+const PublicReportPage  = lazy(() => import("@/pages/PublicReportPage"));
 const RootRedirect      = lazy(() => import("@/pages/RootRedirect"));
 const EditPatientPage   = lazy(() => import("@/pages/patients/EditPatientPage"));
 const NewPatientPage    = lazy(() => import("@/pages/patients/NewPatientPage"));
@@ -36,6 +37,8 @@ export default function App() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Opened from the QR code on a printed report: no login */}
+        <Route path="/r/:token" element={<PublicReportPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>

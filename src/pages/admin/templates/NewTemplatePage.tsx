@@ -13,10 +13,12 @@ export default function NewTemplatePage() {
   const [loading, setLoading] = useState(Boolean(duplicateId));
 
   useEffect(() => {
+    setSourceTemplate(null);
     if (!duplicateId) {
       setLoading(false);
       return;
     }
+    setLoading(true);
     getTemplate(duplicateId)
       .then(setSourceTemplate)
       .catch(console.error)
@@ -46,7 +48,7 @@ export default function NewTemplatePage() {
           </p>
         </div>
       </div>
-      <TemplateForm mode="new" initial={sourceTemplate ?? undefined} />
+      <TemplateForm key={sourceTemplate?.id ?? "blank"} mode="new" initial={sourceTemplate ?? undefined} />
     </div>
   );
 }
