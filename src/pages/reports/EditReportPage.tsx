@@ -204,7 +204,7 @@ export default function EditReportPage() {
   if (!report || !selectedTemplate) return null;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-6" data-nav-scope>
       {/* Page header */}
       <div className="flex items-center gap-4">
         <Link to={`/reports/${id}`} className="btn btn-ghost btn-icon">
