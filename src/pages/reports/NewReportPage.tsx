@@ -205,7 +205,7 @@ export default function NewReportPage() {
   ];
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-6" data-nav-scope>
       <div className="flex items-center gap-4">
         <Link to="/reports" className="btn btn-ghost btn-icon">
           <ArrowLeft className="h-4 w-4 text-slate-500" />
@@ -243,6 +243,7 @@ export default function NewReportPage() {
             {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /> */}
             <input
               type="text"
+              data-nav-ignore
               placeholder="Type patient name, phone or ID..."
               value={patientSearch}
               onChange={(event) => setPatientSearch(event.target.value)}
@@ -331,6 +332,7 @@ export default function NewReportPage() {
             {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /> */}
             <input
               type="text"
+              data-nav-ignore
               placeholder="Search test name or category..."
               value={templateSearch}
               onChange={(e) => setTemplateSearch(e.target.value)}

@@ -23,6 +23,7 @@ import {
 
 import { useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/shared/ErrorBoundary";
+import { useFieldNavigation } from "@/hooks/useFieldNavigation";
 import { preloadCommonRoutes, preloadRoute } from "@/lib/preload";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,7 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 export default function DashboardLayout() {
+  useFieldNavigation();
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, isAdmin, signOut } = useAuth();
