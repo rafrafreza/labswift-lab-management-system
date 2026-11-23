@@ -4,7 +4,7 @@
 
 ### The lab information system that pathology labs run their day on
 
-**Patient intake → test entry → auto-flagged results → branded PDF reports → billing → doctor commissions**
+**Patient intake → test entry → auto-flagged results → branded PDF reports → billing & analytics**
 All in one fast, secure web app.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-labswift--demo.vercel.app-0d9488?style=for-the-badge&logo=vercel&logoColor=white)](https://labswift-demo.vercel.app)
@@ -45,7 +45,7 @@ Small pathology labs often run on paper registers, Excel sheets and Word templat
 
 - **Slow turnaround.** Staff retype patient details and reference ranges for every report.
 - **Clinical risk.** Abnormal values are spotted by eye, and wrong-gender reference ranges slip through.
-- **Revenue leakage.** Partial payments, discounts and referring-doctor commissions are tracked loosely or not at all.
+- **Revenue leakage.** Partial payments, discounts and outstanding dues are tracked loosely or not at all.
 - **No audit trail.** Anyone can quietly change a finalised report.
 
 LabSwift replaces that workflow with one system that a non-technical lab assistant can learn in an afternoon.
@@ -61,8 +61,7 @@ LabSwift replaces that workflow with one system that a non-technical lab assista
 | 📚 **Combined patient reports** | Pick reports from a patient's timeline (grouped as *Today*, *Yesterday*, and by date) and export them as **one multi-page PDF**, ready to print or send on WhatsApp. |
 | 🔗 **QR-verified reports** | Each report can carry a QR code that links to a **tokenised public copy**. The copy leaves out billing and contact details, and the link can be revoked per report. |
 | 💰 **Billing built for real labs** | Reports start as *Unpaid*. Staff can record them as Paid, Partial (with live balance due), Free or Unpaid, and apply flat or percentage discounts. |
-| 🩺 **Doctor referral incentives** | Commissions are calculated on the **net bill after discounts**, then tracked from accrual to payout. |
-| 📊 **Analytics & financials** | Revenue, collections, dues, test mix and referral performance, shown with interactive charts for the lab owner. |
+| 📊 **Analytics & financials** | Revenue, collections, dues, and test mix, shown with interactive charts for the lab owner. |
 | 👥 **Team management** | Invite-only onboarding, Admin/Staff roles, account deactivation, and secure password setup and reset flows. |
 | ⌨️ **Fast data entry** | Staff can move through every form with Enter and the arrow keys, which matters when the same form is filled 100 times a day. |
 
@@ -105,7 +104,7 @@ This app handles **medical and financial records**, so it was built with **secur
 flowchart LR
     subgraph Client["Browser · React 18 + TypeScript SPA"]
         UI["Pages & Components<br/>(lazy-loaded routes)"]
-        SVC["Domain service layer<br/>patients · reports · templates<br/>doctors · financials · analytics"]
+        SVC["Domain service layer<br/>patients · reports · templates<br/>financials · analytics"]
         PDF["PDF engine<br/>@react-pdf/renderer<br/>4 designs · QR · signatures"]
         UI --> SVC
         UI --> PDF
@@ -154,7 +153,7 @@ src/
 ├── pages/                # Route-level screens (lazy-loaded)
 │   ├── patients/         # Intake, profile, report timeline
 │   ├── reports/          # Create, edit, view, finalise
-│   └── admin/            # Templates, users, doctors, incentives, financials, analytics, settings
+│   └── admin/            # Templates, users, financials, analytics, settings
 ├── components/
 │   ├── shared/           # LabReportPDF, PaymentModal, TemplateForm, …
 │   ├── settings/         # PDF design picker with live thumbnails
@@ -209,7 +208,7 @@ npm run typecheck  # type-check only
 - **End-to-end product ownership.** I gathered requirements from lab owners, then designed, built, deployed and supported the system in production.
 - **Software that real users depend on.** It has handled 10,000+ reports over 6+ months, and I fix and ship based on feedback from the people using it every day.
 - **Security-first backend design.** Authorization is defined in the database, the system went through an audit-and-fix pass, and access follows least privilege.
-- **Product judgment.** Billing, commission and PDF features are modelled on how labs actually work rather than on idealised flows.
+- **Product judgment.** Billing and PDF features are modelled on how labs actually work rather than on idealised flows.
 - **Performance work.** Code splitting, prefetching, request de-duplication and query optimisation.
 
 ---
