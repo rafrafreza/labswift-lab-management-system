@@ -1,131 +1,231 @@
-# LabSwift — Modern Pathology & Laboratory Information System (LIMS)
+<div align="center">
 
-![React](https://img.shields.io/badge/React-18-blue?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
-![Vite](https://img.shields.io/badge/Vite-5-purple?logo=vite)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-teal?logo=tailwindcss)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%7C%20Auth%20%7C%20Storage-emerald?logo=supabase)
-![React-PDF](https://img.shields.io/badge/@react--pdf/renderer-Client--Side%20PDF-red)
+# LabSwift
 
-A robust, cloud-enabled Laboratory Information Management System (LIMS) engineered for pathology labs and diagnostic centres. Battle-tested in live daily clinical environments, LabSwift streamlines patient intake, test template customization, reporting, billing, doctor referral commissions, and report dispatch.
+### The lab information system that pathology labs run their day on
 
----
+**Patient intake → test entry → auto-flagged results → branded PDF reports → billing → doctor commissions**
+All in one fast, secure web app.
 
-## 🌟 Key Features
+[![Live Demo](https://img.shields.io/badge/Live_Demo-labswift--demo.vercel.app-0d9488?style=for-the-badge&logo=vercel&logoColor=white)](https://labswift-demo.vercel.app)
 
-### 1. Patient & Demographic Management
-- **Pediatric & Adult Age Precision**: Supports both **Years (0–150)** and **Months (0–11)** for accurate pediatric/infant lab reference evaluations.
-- **Unique Patient Identifier**: Automated sequential numbering format (e.g. `P-00001`).
-- **Complete Patient Profile**: Searchable history, contact details, blood groups, and referring physicians.
+![React](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript_5-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_+_RLS-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![Deno](https://img.shields.io/badge/Edge_Functions-000000?style=flat-square&logo=deno&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
 
-### 2. Clinical Test Template Engine
-- **Pre-Configured Medical Profiles**: Out-of-the-box support for Complete Blood Count (CBC), Liver Function Tests (LFT), Kidney Function Tests (KFT), Lipid Profiles, Urine Routine, Thyroid Panels, and **Widal Antigen-Antibody Agglutination Matrix**.
-- **Gender-Aware Reference Ranges**: Custom normal ranges for Male, Female, and General patients with automatic abnormality flagging.
-- **Safe Template Architecture**: Soft-deactivation avoids Postgres foreign-key delete restrictions, ensuring historic patient records are never invalidated when updating template fields.
-- **Template Duplication**: "Duplicate as New" action enables creating specialized test variations in seconds without retyping parameters from scratch.
-
-### 3. Patient Timeline & Combined PDF Generation
-- **Chronological History**: Reports are sorted from latest to oldest and organized into date groups (e.g. *Today*, *Yesterday*, *24 October 2026*).
-- **Multi-Test Batch Selection**: One-click checkboxes to select multiple reports or "Select all for this date".
-- **Single Cumulative PDF**: Compiles all selected tests for a patient into a single unified multi-page PDF document (`<patientCode>-<patientName>-<DD-MM>-Combined-Reports.pdf`) for single-click printing or WhatsApp sharing.
-
-### 4. Real-World Lab Billing & Doctor Referral Accounting
-- **Collection-First Workflow**: Default report status is set to **`UNPAID`**, matching laboratory workflows where patients pay upon report collection.
-- **Interactive Payment Modal**: Quickly record payments with 4 distinct statuses:
-  - **`Paid`**: Full net bill collected.
-  - **`Partial`**: Custom amount collected with live **Balance Due** calculation.
-  - **`Free / Waived`**: Zero-cost fee waiver.
-  - **`Unpaid`**: Outstanding dues tracked on dashboard.
-- **Patient Discounts**: Apply flat (₹) or percentage (%) discounts with quick preset chips (10%, 20%, 50%, Free).
-- **Accurate Doctor Incentives**: Referral payouts are automatically calculated on the **net bill after discounts**, preventing commission/revenue mismatches.
-
-### 5. Branding & Configurable Pathologist Signature
-- **Custom Header & Watermark**: Laboratory branding with high-resolution logo watermark and customizable theme accent colors.
-- **Toggleable Digital Signature**: In **Settings**, lab owners can check/uncheck *"Use uploaded signature in PDF lab reports"*:
-  - **Checked**: Digitally signs the report above the pathologist's credentials.
-  - **Unchecked**: Leaves an uncluttered, standardized signing space for physical pen signatures and stamps.
-
-### 6. Security & Role-Based Access Control
-- **Supabase Authentication & Row-Level Security (RLS)**: Enforces role isolation between **Admin** and **Staff** members.
-- **Session Protection**: Guarded routes, password reset workflows, and token expiration handling.
-- **Sanitized Client Assets**: No secrets or private database strings exposed in client-side bundles.
+</div>
 
 ---
 
-## 🛠️ Tech Stack
+## In production
 
-- **Frontend**: [React 18](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
-- **Bundler**: [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Backend & Database**: [Supabase](https://supabase.com/) (PostgreSQL with RLS, Auth, and Storage)
-- **PDF Engine**: [@react-pdf/renderer](https://react-pdf.org/)
-- **Icons & UI**: [Lucide React](https://lucide.dev/), [Sonner](https://sonner.emilkowal.ski/)
+LabSwift began as a freelance project for working diagnostic labs. It is still part of their daily workflow.
 
----
+<div align="center">
 
-## 🚀 Getting Started
+| **10,000+** | **6+ months** | **Daily** | **0 → 1** |
+| :---: | :---: | :---: | :---: |
+| lab reports generated | in continuous production use | used by front-desk staff and pathologists | designed, built, shipped and maintained by one engineer |
 
-### Prerequisites
+</div>
 
-- [Node.js](https://nodejs.org/) (v18.0.0 or higher)
-- [npm](https://www.npmjs.com/) or [pnpm](https://pnpm.io/)
-- A Supabase project (free tier supported)
-
-### Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/rafrafreza/labswift-demo.git
-   cd labswift-demo
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment Variables**:
-   Copy the example environment template:
-   ```bash
-   cp .env.example .env.local
-   ```
-   Open `.env.local` and add your Supabase credentials:
-   ```env
-   VITE_SUPABASE_URL="https://your-project-id.supabase.co"
-   VITE_SUPABASE_ANON_KEY="your-anon-public-key"
-   VITE_APP_URL="http://localhost:5173"
-   ```
-
-4. **Database Setup**:
-   Execute the migration scripts located in `supabase/migrations/` in sequential order (from `01.sql` to `12.sql`) using the **Supabase SQL Editor**.
-
-5. **Start Development Server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:5173](http://localhost:5173) in your browser.
+> **About this repository:** this is my public demo build. It is a separate codebase and deployment from the client's production system, so no client or patient data is here.
+> **Try it:** [labswift-demo.vercel.app](https://labswift-demo.vercel.app)
 
 ---
 
-## 📦 Scripts
+## The problem
 
-| Command | Description |
+Small pathology labs often run on paper registers, Excel sheets and Word templates. That costs them in four ways:
+
+- **Slow turnaround.** Staff retype patient details and reference ranges for every report.
+- **Clinical risk.** Abnormal values are spotted by eye, and wrong-gender reference ranges slip through.
+- **Revenue leakage.** Partial payments, discounts and referring-doctor commissions are tracked loosely or not at all.
+- **No audit trail.** Anyone can quietly change a finalised report.
+
+LabSwift replaces that workflow with one system that a non-technical lab assistant can learn in an afternoon.
+
+---
+
+## Highlights
+
+| | |
 | :--- | :--- |
-| `npm run dev` | Runs the Vite local development server |
-| `npm run build` | Compiles TypeScript and creates production build in `dist/` |
-| `npm run typecheck` | Validates TypeScript types across the entire codebase |
-| `npm run preview` | Previews the compiled production build locally |
+| 🧪 **Template engine for any test** | Labs build their own tests (CBC, LFT, KFT, lipid profile, thyroid, urine routine, Widal matrix…) with units and **gender-specific reference ranges**. Out-of-range values are flagged automatically. |
+| 📄 **Report PDFs in the browser** | Branded, print-ready PDFs are generated on the device, so the server does no PDF work. There are **4 selectable report designs**, a logo watermark, an accent colour, and an optional digital signature. |
+| 📚 **Combined patient reports** | Pick reports from a patient's timeline (grouped as *Today*, *Yesterday*, and by date) and export them as **one multi-page PDF**, ready to print or send on WhatsApp. |
+| 🔗 **QR-verified reports** | Each report can carry a QR code that links to a **tokenised public copy**. The copy leaves out billing and contact details, and the link can be revoked per report. |
+| 💰 **Billing built for real labs** | Reports start as *Unpaid*. Staff can record them as Paid, Partial (with live balance due), Free or Unpaid, and apply flat or percentage discounts. |
+| 🩺 **Doctor referral incentives** | Commissions are calculated on the **net bill after discounts**, then tracked from accrual to payout. |
+| 📊 **Analytics & financials** | Revenue, collections, dues, test mix and referral performance, shown with interactive charts for the lab owner. |
+| 👥 **Team management** | Invite-only onboarding, Admin/Staff roles, account deactivation, and secure password setup and reset flows. |
+| ⌨️ **Fast data entry** | Staff can move through every form with Enter and the arrow keys, which matters when the same form is filled 100 times a day. |
 
 ---
 
-## 🔒 Security & Deployment Notes
+## Engineering deep-dive
 
-- **Never commit `.env` or `.env.local`**: Ensure private service role keys and secrets remain in environment configurations only.
-- **Row-Level Security (RLS)**: Verify that all PostgreSQL tables have RLS enabled as defined in `supabase/migrations/`.
-- **Public Anon Key**: The `VITE_SUPABASE_ANON_KEY` is meant for public client access and restricted by PostgreSQL RLS policies.
+This app handles **medical and financial records**, so it was built with **security and data integrity as hard requirements** rather than add-ons.
+
+### 🔐 Security is enforced in the database
+
+- **PostgreSQL Row-Level Security on every table.** The UI route guard is only for user experience; the database itself decides who can read or write each row.
+- **Security audit and fix pass (S1–S11).** I audited the system for privilege-escalation and data-exposure issues, then fixed them in SQL migrations:
+  - **Database triggers block self-promotion.** Only an admin can change a user's `role`, `isActive` or `email`.
+  - **New sign-ups start as inactive Staff.** Accounts are created only through a server-side invite function.
+  - **Finalised reports are locked for non-admins.** Every change to them is written to an `audit_logs` table by triggers, which clients cannot write to directly.
+- **Least-privilege public access.** The anonymous role can run exactly **one** RPC: it returns finalised reports for a valid random token, without billing or contact data.
+- **Hardened edge function for invites (Deno).** It verifies the caller is an active admin, checks the request origin against an allow-list (CORS), validates input, and **rate-limits** invites. It is the only code path that uses the service-role key.
+- **Security headers at the edge:** HSTS, X-Frame-Options, Permissions-Policy, and a Content-Security-Policy (report-only).
+
+### 🧱 Data integrity
+
+- **Atomic report saves.** Creating or updating a report runs as a single Postgres transaction (`create_report_atomic` / `update_report_atomic`). Any failure rolls back everything, **including the report number**, so the sequence never has gaps or orphaned rows.
+- **Templates are soft-deleted.** Fields are versioned out instead of deleted, so a report from six months ago still renders exactly as it was issued.
+- **Sequences generated on the server.** Patient codes and report numbers come from Postgres functions, so two staff members saving at the same moment can't get the same number.
+- **Draft protection.** Draft reports can't be exported as PDFs, and unsaved-changes guards prevent accidental data loss.
+
+### ⚡ Performance
+
+- **Route-level code splitting plus intent-based prefetching.** A page's JavaScript chunk starts downloading when the user hovers its link, so navigation feels instant.
+- **Request de-duplication cache.** Concurrent callers share a single in-flight request. Entries expire by TTL, and a generation counter **prevents stale writes** when data is invalidated mid-request.
+- **Parallel aggregate queries.** Dashboard counts use `HEAD` + `count: exact` queries fired in parallel, and indexes were added to the hottest query paths.
+- **PDFs generated on the client.** Uploaded logos and signatures are re-encoded in the browser so the PDF engine renders them reliably.
 
 ---
 
-## 📄 License
+## Architecture
 
-This software is developed for pathology diagnostic centers. All rights reserved.
+```mermaid
+flowchart LR
+    subgraph Client["Browser · React 18 + TypeScript SPA"]
+        UI["Pages & Components<br/>(lazy-loaded routes)"]
+        SVC["Domain service layer<br/>patients · reports · templates<br/>doctors · financials · analytics"]
+        PDF["PDF engine<br/>@react-pdf/renderer<br/>4 designs · QR · signatures"]
+        UI --> SVC
+        UI --> PDF
+    end
+
+    subgraph Supabase["Supabase"]
+        AUTH["Auth<br/>invite · reset · sessions"]
+        DB[("PostgreSQL<br/>RLS policies · triggers<br/>atomic RPCs · audit log")]
+        STORE["Storage<br/>logo · signature"]
+        EDGE["Edge Function (Deno)<br/>invite-user<br/>admin-verified · rate-limited"]
+    end
+
+    PUBLIC["Public QR link<br/>/r/:token"] -->|"single anon RPC"| DB
+    SVC -->|"JWT + RLS"| DB
+    SVC --> AUTH
+    SVC --> STORE
+    SVC -->|"admin only"| EDGE
+    EDGE -->|"service role"| AUTH
+
+    Client -.->|"hosted on"| VERCEL["Vercel Edge<br/>security headers · CSP"]
+```
+
+**Design choice:** the app has no custom API server. Authorization lives in Postgres (RLS, triggers and `SECURITY INVOKER` RPCs), so the browser can talk to the database directly and still can't bypass the rules. This keeps hosting costs close to zero for a small lab, and there is one source of truth for permissions.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend** | React 18, TypeScript (strict), React Router 6, Tailwind CSS |
+| **Build & hosting** | Vite 5, Vercel (edge headers, SPA rewrites, Speed Insights) |
+| **Database** | PostgreSQL via Supabase: RLS, triggers, PL/pgSQL RPCs, indexes |
+| **Auth** | Supabase Auth: invite-only onboarding, recovery flows, role-based access |
+| **Serverless** | Supabase Edge Functions (Deno) |
+| **Documents** | `@react-pdf/renderer`, `qrcode` (vector QR) |
+| **Data viz** | Recharts |
+| **UX** | Lucide icons, Sonner toasts, date-fns |
+
+---
+
+## Project structure
+
+```text
+src/
+├── pages/                # Route-level screens (lazy-loaded)
+│   ├── patients/         # Intake, profile, report timeline
+│   ├── reports/          # Create, edit, view, finalise
+│   └── admin/            # Templates, users, doctors, incentives, financials, analytics, settings
+├── components/
+│   ├── shared/           # LabReportPDF, PaymentModal, TemplateForm, …
+│   ├── settings/         # PDF design picker with live thumbnails
+│   └── routing/          # Auth and role guards
+├── lib/
+│   ├── services/         # One module per domain; all data access goes through here
+│   ├── cache.ts          # De-duplicating TTL cache with generation-based invalidation
+│   ├── preload.ts        # Intent-based route prefetching
+│   └── reportTemplates.ts# PDF design catalogue
+├── hooks/                # Keyboard navigation, unsaved-changes guard, auth
+└── types/                # Domain types
+
+supabase/
+├── migrations/           # Versioned SQL: schema, RLS, triggers, RPCs, indexes
+└── functions/invite-user # Deno edge function for secure user provisioning
+```
+
+---
+
+## Running locally
+
+**Prerequisites:** Node.js 18+ and a free [Supabase](https://supabase.com) project.
+
+```bash
+git clone https://github.com/rafrafreza/labswift-demo.git
+cd labswift-demo
+npm install
+cp .env.example .env.local   # then fill in the values below
+```
+
+```env
+VITE_SUPABASE_URL="https://<your-project>.supabase.co"
+VITE_SUPABASE_ANON_KEY="<your-anon-key>"
+VITE_APP_URL="http://localhost:5173"
+```
+
+1. **Database.** Run the scripts in `supabase/migrations/` in numeric order in the Supabase SQL Editor.
+2. **Invites.** Deploy the edge function with `supabase functions deploy invite-user`.
+3. **Auth settings.** In Supabase, add `<your-site>/login` to *Auth → URL Configuration → Redirect URLs*, and turn **off** public sign-ups.
+4. **Start the app:**
+
+```bash
+npm run dev        # http://localhost:5173
+npm run build      # type-check + production build
+npm run typecheck  # type-check only
+```
+
+---
+
+## What this project shows
+
+- **End-to-end product ownership.** I gathered requirements from lab owners, then designed, built, deployed and supported the system in production.
+- **Software that real users depend on.** It has handled 10,000+ reports over 6+ months, and I fix and ship based on feedback from the people using it every day.
+- **Security-first backend design.** Authorization is defined in the database, the system went through an audit-and-fix pass, and access follows least privilege.
+- **Product judgment.** Billing, commission and PDF features are modelled on how labs actually work rather than on idealised flows.
+- **Performance work.** Code splitting, prefetching, request de-duplication and query optimisation.
+
+---
+
+<div align="center">
+
+### Built by [Rafraf Reza](https://github.com/rafrafreza)
+
+**Open to AI Engineer / GenAI Engineer / Software Engineer roles**: remote worldwide, or hybrid/on-site in India.
+
+If you're hiring or want something similar built, reach out via my [GitHub profile](https://github.com/rafrafreza).
+
+⭐ Star this repo if you found it interesting.
+
+</div>
+
+---
+
+<sub>© Rafraf Reza. Demo build shared for portfolio purposes. The production deployment and client data are private. All rights reserved.</sub>
