@@ -178,8 +178,8 @@ supabase/
 **Prerequisites:** Node.js 18+ and a free [Supabase](https://supabase.com) project.
 
 ```bash
-git clone https://github.com/rafrafreza/labswift-demo.git
-cd labswift-demo
+git clone https://github.com/rafrafreza/labswift-lab-management-system.git
+cd labswift-lab-management-system
 npm install
 cp .env.example .env.local   # then fill in the values below
 ```
